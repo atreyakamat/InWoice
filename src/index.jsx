@@ -8,4 +8,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>
   //working on thisS
+  //take out a proper structure and work over this
 );
