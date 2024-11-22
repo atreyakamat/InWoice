@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "inwoice",
+  "private_key_id": "6f8387c13e06de00119a49394a72ec659b368ebe",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCyA6jXqW/JS7cX\nHUYve8mIAAuVRfSLOVFFRznZl2ffCmcsoo8ekPOmXz/4EG88MhQ2ZB90/rcGIpwv\nl+0ulCovCIRN5/CpUIW1zLTzsOOhzbZnYckZwJ5aUBmQ8NEdKfnOVPokKgtf+IrC\nJvC7j6TBH57Nw/bfX2UdAPQJeyMGfNlhJQgUDHoo+do43b/Y34NyBfzgXA4cfhqt\n5VWKvE0YBEqdjAB3d+gVhMPV/tvgRtvEGkycWtTw2oF8IJ5rCgmX6GqKgmy3FYee\nYSr2VBSTguGqkKWhgRicFg/pLD2HZ2CM5Y0r/oX4uj99j9RvZegUfIwEuBiwNXZI\nh/VntojRAgMBAAECggEAD40YyrBTYvExnzwQNdU5U593Y5S/Kot5EVWJ1PuwWBCL\nV1+jI58zndjr2HKtGQPh9qd0BQ88c3WCEflSf9NzRPUYQ8sLn+r4J1vpAfH1zNyQ\n/wKQpCaK3uZo+VvEVOkmGNOdH5wprrpietgWhzgjAzkNMToZnsVxaqF68DoY4vfP\nJFOASY2kGAtug1whoo7GNvdFt2y5YsBoZxEUZtp5p4e7RWs30dfTn1iMnlaoyfuA\nKjRMuDKGpz/glYiXA7VEBMYy12F6FYDpoXgsQarn7z38hRUmgSDpR3GyZ1dxFqd9\n6TgHCaqG5/RkcFQwVec7hlm7+o1fdcKTZDR6q+DrUQKBgQDvqBsZBDL2APXsgM8T\n3es/dnotFCG5oenWcw3KuDtYQw7GkQfQpNCnc/7det1GR+o0DHL2+6raLTAueGkQ\ngCU+OsbxjeTjp3hDncM2RVUZERigYCgYYwkgXP0aZLpHpVerwuccZxO3v0++fjke\nF9qSiqNxFDwj8z8ZHTMqQMZXaQKBgQC+J2jP8xcozADoZWhm+lIvzkYJyITr+L0E\nQZJ+Z+kbSS0mL+LCA2Kg/leQ+q5wiCxyV4IuLb/wIeNR6W2vMacRRc1165k7tM+k\nMBy+eKvU8q9N7jYWfjOJ668pLtMJw/FXo9Joa92wnPV4H3iqVQPPADqAGoiK4erD\n18b/yX4hKQKBgEW/FcvNBgvEMc4Xmqx8fFdm4p216y68KXKo302tGlBQi79MPAsD\nvFnPj0/jzvwCN+3X5altisaeOhR8JI+Ry8T1lCp+kiuS9JQxGLv1p5N4/0LFWUXn\npKNPjLWetPve6cnqGhqRARML0WhuEa9pX8ogIPrq2anYw/dKITbdzRtpAoGATjHa\nkhj+3xH1FZwN8LrjbTE/7+n7byYcZFGqsjx8yXGwFVH/x5SozFeLHt1XOoNk86g0\nqlS55z+oQRjit/aNIzc3JFS78KeL85KtX040Kx+ZI0zgBSPkgcTfhOnycsOWzVla\nvwIMagJBlyIp9rF7HXaUl/VRTPtWFS74cFslePECgYAxxspyEyyMipQlHsZZ6ovS\nwzyLL0GS3lXjKHDz6/TXr6IO+LeXhiHX3KxGOsL+ZqGJ0o13yi/FqMLVy+dBXbpf\nFcIczPxs6XOQ1d5d8rCLjXDPDmCcdXnqL3ziL3jBSL1wLiwCv59ydKTT7RZ2ht3K\ngVl1F+6j7C9wK3He0fSH0Q==\n-----END PRIVATE KEY-----\n",
+  "client_email": "stix-n-vibes-invoice@inwoice.iam.gserviceaccount.com",
+  "client_id": "112945040164887972191",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/stix-n-vibes-invoice%40inwoice.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
