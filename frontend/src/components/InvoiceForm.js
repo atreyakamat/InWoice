@@ -6,7 +6,7 @@ const InvoiceForm = () => {
         CustomerName: '',
         Product: '',
         Quantity: 1,
-        PricePerUnit: 0,
+        PricePerUnit: 10,
         Date: new Date().toLocaleDateString(),
     });
 
