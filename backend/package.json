@@ -10,14 +10,21 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "body-parse": "^0.1.0",
-    "body-parser": "^1.20.3",
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.13.6",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
     "express": "^4.21.1",
     "googleapis": "^144.0.0",
+    "he": "^1.2.0",
+    "jsonfile": "^6.2.0",
+    "nanoid": "^5.1.6",
     "node-fetch": "^3.3.2",
+    "nodemailer": "^8.0.1",
     "punycode": "^2.3.1",
-    "whatwg-url": "^14.0.0"
+    "puppeteer": "^24.38.0",
+    "qrcode": "^1.5.4",
+    "whatwg-url": "^14.0.0",
+    "zod": "^4.3.6"
   }
 }

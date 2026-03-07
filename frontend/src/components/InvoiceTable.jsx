@@ -1,0 +1,100 @@
+import React from 'react';
+import { Download, Mail, RefreshCw, Bell } from 'lucide-react';
+import axios from 'axios';
+
+const InvoiceTable = ({ invoices, onRefresh }) => {
+
+    const handleGeneratePDF = async (invoiceID) => {
+        try {
+            const res = await axios.post(`http://localhost:5000/api/invoices/${invoiceID}/generate-pdf`, {}, { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `${invoiceID}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+        } catch (error) {
+            console.error(error);
+            alert('Failed to generate PDF');
+        }
+    };
+
+    const handleSendEmail = async (invoiceID) => {
+        try {
+            await axios.post(`http://localhost:5000/api/email/send/${invoiceID}`);
+            alert('Email sent successfully!');
+        } catch (error) {
+            console.error(error);
+            alert('Failed to send email. Check settings.');
+        }
+    };
+
+    const handleSendReminder = async (invoiceID) => {
+        try {
+            await axios.post(`http://localhost:5000/api/email/remind/${invoiceID}`);
+            alert('Reminder email sent successfully!');
+        } catch (error) {
+            console.error(error);
+            alert('Failed to send reminder. Check settings.');
+        }
+    };
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th className="px-6 py-4 text-sm font-semibold text-gray-600">Invoice ID</th>
+                            <th className="px-6 py-4 text-sm font-semibold text-gray-600">Date</th>
+                            <th className="px-6 py-4 text-sm font-semibold text-gray-600">Customer Name</th>
+                            <th className="px-6 py-4 text-sm font-semibold text-gray-600">Total Amount</th>
+                            <th className="px-6 py-4 text-sm font-semibold text-gray-600">Status</th>
+                            <th className="px-6 py-4 text-sm font-semibold text-gray-600 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {invoices.map((inv) => (
+                            <tr key={inv.invoiceID} className="hover:bg-gray-50 transition">
+                                <td className="px-6 py-4 text-sm font-medium text-purple-700">{inv.invoiceID}</td>
+                                <td className="px-6 py-4 text-sm text-gray-600">{inv.date}</td>
+                                <td className="px-6 py-4 text-sm text-gray-800">{inv.customerName}</td>
+                                <td className="px-6 py-4 text-sm font-medium text-gray-800">${inv.grandTotal.toFixed(2)}</td>
+                                <td className="px-6 py-4">
+                                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                        inv.paymentStatus === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                                    }`}>
+                                        {inv.paymentStatus}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 text-right space-x-2">
+                                    {inv.paymentStatus === 'Pending' && (
+                                        <button onClick={() => handleSendReminder(inv.invoiceID)} title="Send Payment Reminder" className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition">
+                                            <Bell size={18} />
+                                        </button>
+                                    )}
+                                    <button onClick={() => handleGeneratePDF(inv.invoiceID)} title="Download PDF" className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition">
+                                        <Download size={18} />
+                                    </button>
+                                    <button onClick={() => handleSendEmail(inv.invoiceID)} title="Email Invoice" className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition">
+                                        <Mail size={18} />
+                                    </button>
+                                    <button onClick={() => handleGeneratePDF(inv.invoiceID)} title="Regenerate PDF" className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition">
+                                        <RefreshCw size={18} />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                        {invoices.length === 0 && (
+                            <tr>
+                                <td colSpan="6" className="px-6 py-8 text-center text-gray-500">No invoices found.</td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+export default InvoiceTable;
