@@ -1,0 +1,25 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    env_file: ./backend/.env
+    volumes:
+      - ./backend/database.json:/usr/src/app/database.json
+    restart: always
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: always
+
+  local-ai:
+    build: ./local_ai
+    ports:
+      - "8000:8000"
+    restart: always
+    # Note: Running AI models requires significant RAM. 
+    # If deploying on a low-power device, use Gemini Cloud instead.
