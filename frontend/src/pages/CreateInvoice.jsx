@@ -30,7 +30,9 @@ const CreateInvoice = () => {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const res = await axios.get('http://localhost:5000/api/data/settings');
+                const res = await axios.get('http://localhost:5000/api/data/settings', {
+                    headers: { Authorization: localStorage.getItem('token') }
+                });
                 setSettings(res.data);
             } catch (err) {
                 console.error(err);

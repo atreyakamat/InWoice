@@ -20,7 +20,9 @@ const Settings = () => {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const res = await axios.get('http://localhost:5000/api/data/settings');
+                const res = await axios.get('http://localhost:5000/api/data/settings', {
+                    headers: { Authorization: localStorage.getItem('token') }
+                });
                 if (res.data) {
                     setSettings(prev => ({ ...prev, ...res.data }));
                 }
@@ -38,7 +40,9 @@ const Settings = () => {
 
     const handleSave = async () => {
         try {
-            await axios.post('http://localhost:5000/api/data/settings', settings);
+            await axios.post('http://localhost:5000/api/data/settings', settings, {
+                headers: { Authorization: localStorage.getItem('token') }
+            });
             alert('Settings saved successfully!');
         } catch (error) {
             console.error(error);

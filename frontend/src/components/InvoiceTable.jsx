@@ -1,12 +1,13 @@
 import React from 'react';
-import { Download, Mail, RefreshCw, Bell } from 'lucide-react';
+import { Download, Mail, RefreshCw, Bell, CheckCircle, Trash2 } from 'lucide-react';
 import axios from 'axios';
 
 const InvoiceTable = ({ invoices, onRefresh }) => {
+    const authHeader = { headers: { Authorization: localStorage.getItem('token') } };
 
     const handleGeneratePDF = async (invoiceID) => {
         try {
-            const res = await axios.post(`http://localhost:5000/api/invoices/${invoiceID}/generate-pdf`, {}, { responseType: 'blob' });
+            const res = await axios.post(`http://localhost:5000/api/invoices/${invoiceID}/generate-pdf`, {}, { ...authHeader, responseType: 'blob' });
             const url = window.URL.createObjectURL(new Blob([res.data]));
             const link = document.createElement('a');
             link.href = url;
@@ -21,7 +22,7 @@ const InvoiceTable = ({ invoices, onRefresh }) => {
 
     const handleSendEmail = async (invoiceID) => {
         try {
-            await axios.post(`http://localhost:5000/api/email/send/${invoiceID}`);
+            await axios.post(`http://localhost:5000/api/email/send/${invoiceID}`, {}, authHeader);
             alert('Email sent successfully!');
         } catch (error) {
             console.error(error);
@@ -31,11 +32,31 @@ const InvoiceTable = ({ invoices, onRefresh }) => {
 
     const handleSendReminder = async (invoiceID) => {
         try {
-            await axios.post(`http://localhost:5000/api/email/remind/${invoiceID}`);
+            await axios.post(`http://localhost:5000/api/email/remind/${invoiceID}`, {}, authHeader);
             alert('Reminder email sent successfully!');
         } catch (error) {
             console.error(error);
             alert('Failed to send reminder. Check settings.');
+        }
+    };
+
+    const handleUpdateStatus = async (invoiceID, status) => {
+        if (!window.confirm(`Mark invoice ${invoiceID} as ${status}?`)) return;
+        try {
+            await axios.patch(`http://localhost:5000/api/invoices/${invoiceID}/status`, { status }, authHeader);
+            onRefresh();
+        } catch (error) {
+            alert('Failed to update status');
+        }
+    };
+
+    const handleDeleteInvoice = async (invoiceID) => {
+        if (!window.confirm(`Are you sure you want to delete invoice ${invoiceID}? This cannot be undone.`)) return;
+        try {
+            await axios.delete(`http://localhost:5000/api/invoices/${invoiceID}`, authHeader);
+            onRefresh();
+        } catch (error) {
+            alert('Failed to delete invoice');
         }
     };
 
@@ -67,11 +88,16 @@ const InvoiceTable = ({ invoices, onRefresh }) => {
                                         {inv.paymentStatus}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4 text-right space-x-2">
+                                <td className="px-6 py-4 text-right space-x-1">
                                     {inv.paymentStatus === 'Pending' && (
-                                        <button onClick={() => handleSendReminder(inv.invoiceID)} title="Send Payment Reminder" className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition">
-                                            <Bell size={18} />
-                                        </button>
+                                        <>
+                                            <button onClick={() => handleUpdateStatus(inv.invoiceID, 'Paid')} title="Mark as Paid" className="p-2 text-green-500 hover:bg-green-50 rounded-lg transition">
+                                                <CheckCircle size={18} />
+                                            </button>
+                                            <button onClick={() => handleSendReminder(inv.invoiceID)} title="Send Payment Reminder" className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition">
+                                                <Bell size={18} />
+                                            </button>
+                                        </>
                                     )}
                                     <button onClick={() => handleGeneratePDF(inv.invoiceID)} title="Download PDF" className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition">
                                         <Download size={18} />
@@ -79,8 +105,8 @@ const InvoiceTable = ({ invoices, onRefresh }) => {
                                     <button onClick={() => handleSendEmail(inv.invoiceID)} title="Email Invoice" className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition">
                                         <Mail size={18} />
                                     </button>
-                                    <button onClick={() => handleGeneratePDF(inv.invoiceID)} title="Regenerate PDF" className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition">
-                                        <RefreshCw size={18} />
+                                    <button onClick={() => handleDeleteInvoice(inv.invoiceID)} title="Delete Invoice" className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+                                        <Trash2 size={18} />
                                     </button>
                                 </td>
                             </tr>

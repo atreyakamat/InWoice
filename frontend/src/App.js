@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import CreateInvoice from './pages/CreateInvoice';
@@ -9,14 +9,22 @@ import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import Products from './pages/Products';
 import WebInvoiceView from './pages/WebInvoiceView';
+import Login from './pages/Login';
+
+const ProtectedRoute = ({ children }) => {
+  const token = localStorage.getItem('token');
+  if (!token) return <Navigate to="/login" replace />;
+  return children;
+};
 
 const Layout = ({ children }) => {
   const location = useLocation();
   const isPublic = location.pathname.startsWith('/view-invoice');
+  const isLogin = location.pathname === '/login';
 
   return (
     <div className="flex h-screen bg-gray-50 text-gray-800 font-sans">
-      {!isPublic && <Sidebar />}
+      {!isPublic && !isLogin && <Sidebar />}
       <div className="flex-1 overflow-y-auto">
         {children}
       </div>
@@ -29,14 +37,16 @@ function App() {
     <Router>
       <Layout>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/create-invoice" element={<CreateInvoice />} />
-          <Route path="/invoices" element={<Invoices />} />
-          <Route path="/products" element={<Products />} />
-          <Route path="/customers" element={<Customers />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/view-invoice/:id" element={<WebInvoiceView />} />
+          
+          <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/create-invoice" element={<ProtectedRoute><CreateInvoice /></ProtectedRoute>} />
+          <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
+          <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
+          <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+          <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         </Routes>
       </Layout>
     </Router>

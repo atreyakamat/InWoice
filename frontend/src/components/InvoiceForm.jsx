@@ -11,10 +11,11 @@ const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTo
 
     useEffect(() => {
         const fetchData = async () => {
+            const authHeader = { headers: { Authorization: localStorage.getItem('token') } };
             try {
                 const [prodRes, custRes] = await Promise.all([
-                    axios.get('http://localhost:5000/api/products'),
-                    axios.get('http://localhost:5000/api/data/customers')
+                    axios.get('http://localhost:5000/api/products', authHeader),
+                    axios.get('http://localhost:5000/api/data/customers', authHeader)
                 ]);
                 setAvailableProducts(prodRes.data);
                 setAvailableCustomers(custRes.data);

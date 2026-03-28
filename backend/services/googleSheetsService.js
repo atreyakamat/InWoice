@@ -131,6 +131,25 @@ const updateSettings = async (newSettings) => {
     return db.settings;
 };
 
+const updateInvoiceStatus = async (invoiceID, status) => {
+    const db = await readDB();
+    const invoice = db.invoices.find(i => i.invoiceID === invoiceID);
+    if (invoice) {
+        invoice.paymentStatus = status;
+        await writeDB(db);
+        // Note: Real-time update for Google Sheets would require finding the row index.
+        // For simplicity in this homelab setup, we update the local DB which is the source of truth.
+        return invoice;
+    }
+    throw new Error('Invoice not found');
+};
+
+const deleteInvoice = async (invoiceID) => {
+    const db = await readDB();
+    db.invoices = db.invoices.filter(i => i.invoiceID !== invoiceID);
+    await writeDB(db);
+};
+
 module.exports = {
     getInvoices,
     addInvoice,
@@ -139,5 +158,7 @@ module.exports = {
     addProduct,
     deleteProduct,
     getSettings,
-    updateSettings
+    updateSettings,
+    updateInvoiceStatus,
+    deleteInvoice
 };

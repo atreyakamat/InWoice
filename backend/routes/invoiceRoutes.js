@@ -39,6 +39,27 @@ router.get('/', async (req, res) => {
     }
 });
 
+router.patch('/:id/status', async (req, res) => {
+    try {
+        const { status } = req.body;
+        const { updateInvoiceStatus } = require('../services/googleSheetsService');
+        const updated = await updateInvoiceStatus(req.params.id, status);
+        res.json(updated);
+    } catch (error) {
+        res.status(404).json({ error: error.message });
+    }
+});
+
+router.delete('/:id', async (req, res) => {
+    try {
+        const { deleteInvoice } = require('../services/googleSheetsService');
+        await deleteInvoice(req.params.id);
+        res.json({ message: 'Invoice deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete invoice' });
+    }
+});
+
 router.post('/:id/generate-pdf', async (req, res) => {
     try {
         const invoiceID = req.params.id;

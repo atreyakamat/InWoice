@@ -8,7 +8,9 @@ const Invoices = () => {
 
     const fetchInvoices = async () => {
         try {
-            const res = await axios.get('http://localhost:5000/api/invoices');
+            const res = await axios.get('http://localhost:5000/api/invoices', {
+                headers: { Authorization: localStorage.getItem('token') }
+            });
             // sort descending by date or ID
             const sorted = res.data.reverse();
             setInvoices(sorted);

@@ -12,7 +12,9 @@ const Products = () => {
 
     const fetchProducts = async () => {
         try {
-            const res = await axios.get('http://localhost:5000/api/products');
+            const res = await axios.get('http://localhost:5000/api/products', {
+                headers: { Authorization: localStorage.getItem('token') }
+            });
             setProducts(res.data);
         } catch (err) {
             console.error(err);
@@ -25,7 +27,9 @@ const Products = () => {
             return;
         }
         try {
-            await axios.post('http://localhost:5000/api/products', newProduct);
+            await axios.post('http://localhost:5000/api/products', newProduct, {
+                headers: { Authorization: localStorage.getItem('token') }
+            });
             setNewProduct({ name: '', category: '', price: 0 });
             fetchProducts();
         } catch (error) {
@@ -35,8 +39,11 @@ const Products = () => {
     };
 
     const handleDelete = async (id) => {
+        if (!window.confirm('Are you sure?')) return;
         try {
-            await axios.delete(`http://localhost:5000/api/products/${id}`);
+            await axios.delete(`http://localhost:5000/api/products/${id}`, {
+                headers: { Authorization: localStorage.getItem('token') }
+            });
             fetchProducts();
         } catch (error) {
             console.error(error);
