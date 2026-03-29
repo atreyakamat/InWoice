@@ -6,6 +6,7 @@ const he = require('he');
 const { getSettings } = require('./googleSheetsService');
 
 let browserInstance = null;
+let templateCache = null;
 
 const getBrowser = async () => {
     if (!browserInstance) {
@@ -21,9 +22,28 @@ const getBrowser = async () => {
     return browserInstance;
 };
 
+/**
+ * Load and cache the invoice template
+ * @returns {Promise<string>} HTML template
+ */
+const loadTemplate = async () => {
+    if (!templateCache) {
+        const templatePath = path.join(__dirname, '../templates/invoiceTemplate.html');
+        templateCache = await fs.promises.readFile(templatePath, 'utf-8');
+    }
+    return templateCache;
+};
+
+/**
+ * Clear template cache (useful for development)
+ */
+const clearTemplateCache = () => {
+    templateCache = null;
+};
+
 const generatePDF = async (invoiceData) => {
-    const templatePath = path.join(__dirname, '../templates/invoiceTemplate.html');
-    let template = fs.readFileSync(templatePath, 'utf-8');
+    // Load template from cache
+    let template = await loadTemplate();
     const settings = await getSettings();
 
     // Sanitize user inputs to prevent HTML injection
@@ -107,4 +127,7 @@ const generatePDF = async (invoiceData) => {
     }
 };
 
-module.exports = { generatePDF };
+module.exports = { 
+    generatePDF,
+    clearTemplateCache // Export for testing/development
+};

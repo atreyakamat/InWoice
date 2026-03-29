@@ -32,8 +32,43 @@ router.post('/', async (req, res) => {
 
 router.get('/', async (req, res) => {
     try {
-        const invoices = await getInvoices();
-        res.json(invoices);
+        // Parse pagination parameters
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const status = req.query.status; // Optional filter
+        
+        if (page < 1 || limit < 1 || limit > 100) {
+            return res.status(400).json({ error: 'Invalid pagination parameters' });
+        }
+
+        // Get all invoices
+        let invoices = await getInvoices();
+
+        // Filter by status if provided
+        if (status) {
+            invoices = invoices.filter(inv => inv.paymentStatus === status);
+        }
+
+        // Calculate pagination
+        const total = invoices.length;
+        const totalPages = Math.ceil(total / limit);
+        const start = (page - 1) * limit;
+        const end = start + limit;
+        
+        // Slice data for current page
+        const paginatedInvoices = invoices.slice(start, end);
+
+        res.json({
+            invoices: paginatedInvoices,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages,
+                hasNext: page < totalPages,
+                hasPrev: page > 1
+            }
+        });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch invoices' });
     }
@@ -80,6 +115,90 @@ router.post('/:id/generate-pdf', async (req, res) => {
             error: 'Failed to generate PDF', 
             details: error.message 
         });
+    }
+});
+
+/**
+ * Duplicate/Clone an existing invoice
+ * POST /api/invoices/:id/duplicate
+ */
+router.post('/:id/duplicate', async (req, res) => {
+    try {
+        const sourceID = req.params.id;
+        const invoices = await getInvoices();
+        const sourceInvoice = invoices.find(i => i.invoiceID === sourceID);
+        
+        if (!sourceInvoice) {
+            return res.status(404).json({ error: 'Invoice not found' });
+        }
+
+        // Create a copy with new ID and current date
+        const year = new Date().getFullYear();
+        const newInvoice = {
+            ...sourceInvoice,
+            invoiceID: `SNV-${year}-${nanoid()}`,
+            date: new Date().toISOString().split('T')[0],
+            paymentStatus: 'Pending' // Reset payment status
+        };
+
+        // Save the duplicated invoice
+        await addInvoice(newInvoice);
+
+        res.status(201).json({ 
+            message: 'Invoice duplicated successfully', 
+            invoice: newInvoice 
+        });
+    } catch (error) {
+        console.error('Duplicate Error:', error);
+        res.status(500).json({ error: 'Failed to duplicate invoice' });
+    }
+});
+
+/**
+ * Update entire invoice (edit functionality)
+ * PUT /api/invoices/:id
+ */
+router.put('/:id', async (req, res) => {
+    try {
+        const invoiceID = req.params.id;
+        const { updateInvoice } = require('../services/googleSheetsService');
+        
+        // Validate the updated data
+        const validation = invoiceSchema.safeParse(req.body);
+        if (!validation.success) {
+            return res.status(400).json({ 
+                error: 'Validation failed', 
+                details: validation.error.format() 
+            });
+        }
+
+        const updatedInvoice = await updateInvoice(invoiceID, validation.data);
+        res.json({ 
+            message: 'Invoice updated successfully', 
+            invoice: updatedInvoice 
+        });
+    } catch (error) {
+        console.error('Update Error:', error);
+        res.status(404).json({ error: error.message });
+    }
+});
+
+/**
+ * Get single invoice by ID
+ * GET /api/invoices/:id
+ */
+router.get('/:id', async (req, res) => {
+    try {
+        const invoices = await getInvoices();
+        const invoice = invoices.find(i => i.invoiceID === req.params.id);
+        
+        if (!invoice) {
+            return res.status(404).json({ error: 'Invoice not found' });
+        }
+
+        res.json(invoice);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch invoice' });
     }
 });
 

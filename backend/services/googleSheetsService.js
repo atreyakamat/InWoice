@@ -144,6 +144,46 @@ const updateInvoiceStatus = async (invoiceID, status) => {
     throw new Error('Invoice not found');
 };
 
+/**
+ * Update an entire invoice
+ */
+const updateInvoice = async (invoiceID, updatedData) => {
+    const db = await readDB();
+    const index = db.invoices.findIndex(i => i.invoiceID === invoiceID);
+    
+    if (index === -1) {
+        throw new Error('Invoice not found');
+    }
+    
+    // Keep the original invoice ID
+    db.invoices[index] = { ...updatedData, invoiceID };
+    
+    // Update customer if email changed
+    if (updatedData.customerEmail) {
+        const existingCustomer = db.customers.find(c => c.email === updatedData.customerEmail);
+        if (!existingCustomer) {
+            db.customers.push({
+                name: updatedData.customerName,
+                email: updatedData.customerEmail,
+                phone: updatedData.customerPhone || '',
+                instagram: updatedData.instagramHandle || '',
+                totalPurchases: updatedData.grandTotal,
+                lastPurchaseDate: updatedData.date
+            });
+        } else {
+            // Recalculate customer totals
+            const customerInvoices = db.invoices.filter(inv => inv.customerEmail === updatedData.customerEmail);
+            existingCustomer.totalPurchases = customerInvoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
+            existingCustomer.lastPurchaseDate = customerInvoices.sort((a, b) => 
+                new Date(b.date) - new Date(a.date)
+            )[0].date;
+        }
+    }
+    
+    await writeDB(db);
+    return db.invoices[index];
+};
+
 const deleteInvoice = async (invoiceID) => {
     const db = await readDB();
     db.invoices = db.invoices.filter(i => i.invoiceID !== invoiceID);
@@ -160,5 +200,6 @@ module.exports = {
     getSettings,
     updateSettings,
     updateInvoiceStatus,
+    updateInvoice,
     deleteInvoice
 };

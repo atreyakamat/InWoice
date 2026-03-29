@@ -1,25 +1,61 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Search, User, Mail, Instagram, Phone, DollarSign } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, User, Mail, Instagram, Phone, DollarSign, Download } from 'lucide-react';
+import API_ENDPOINTS, { api } from '../apiConfig';
+import { toast } from 'react-toastify';
 
 const Customers = () => {
+    const navigate = useNavigate();
     const [customers, setCustomers] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortBy, setSortBy] = useState('spent'); // 'spent' or 'name' or 'date'
-
-    const authHeader = { headers: { Authorization: localStorage.getItem('token') } };
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchCustomers = async () => {
-            try {
-                const res = await axios.get('http://localhost:5000/api/data/customers', authHeader);
-                setCustomers(res.data);
-            } catch (err) {
-                console.error(err);
-            }
-        };
         fetchCustomers();
     }, []);
+
+    const fetchCustomers = async () => {
+        try {
+            setLoading(true);
+            const res = await api.get(API_ENDPOINTS.DATA_CUSTOMERS);
+            setCustomers(res || []);
+        } catch (err) {
+            console.error('Error fetching customers:', err);
+            toast.error('Failed to load customers');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleExportCSV = async () => {
+        try {
+            toast.info('Preparing CSV export...');
+            const response = await fetch(API_ENDPOINTS.EXPORT.CUSTOMERS, {
+                headers: {
+                    'Authorization': localStorage.getItem('token')
+                }
+            });
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `customers-${Date.now()}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                toast.success('Customers exported successfully!');
+            } else {
+                toast.error('Failed to export customers');
+            }
+        } catch (error) {
+            console.error('Export error:', error);
+            toast.error('Export failed');
+        }
+    };
 
     const filteredCustomers = customers
         .filter(c => 
@@ -62,42 +98,72 @@ const Customers = () => {
                         <option value="name">Alphabetical</option>
                         <option value="date">Recent Activity</option>
                     </select>
+                    <button
+                        onClick={handleExportCSV}
+                        className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl hover:bg-purple-700 transition-colors font-semibold"
+                    >
+                        <Download size={18} />
+                        Export CSV
+                    </button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
-                {filteredCustomers.map((cust, idx) => (
-                    <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col lg:flex-row items-start lg:items-center justify-between hover:shadow-md transition-shadow group">
-                        <div className="flex items-center mb-4 lg:mb-0">
-                            <div className="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center text-purple-600 mr-4 group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                                <User size={24} />
+            {loading ? (
+                <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+                </div>
+            ) : filteredCustomers.length === 0 ? (
+                <div className="text-center py-12">
+                    <p className="text-gray-600">No customers found</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 gap-4">
+                    {filteredCustomers.map((cust, idx) => (
+                        <div 
+                            key={idx} 
+                            className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col lg:flex-row items-start lg:items-center justify-between hover:shadow-md transition-shadow group cursor-pointer"
+                            onClick={() => navigate(`/customers/${encodeURIComponent(cust.email)}`)}
+                        >
+                            <div className="flex items-center mb-4 lg:mb-0">
+                                <div className="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center text-purple-600 mr-4 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                                    <User size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-800">{cust.name}</h3>
+                                    <div className="flex items-center text-sm text-gray-500 mt-1">
+                                        <Mail size={14} className="mr-1" /> {cust.email}
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-800">{cust.name}</h3>
-                                <div className="flex items-center text-sm text-gray-500 mt-1">
-                                    <Mail size={14} className="mr-1" /> {cust.email}
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 w-full lg:w-auto">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Spent</span>
+                                    <span className="text-sm font-black text-purple-600 flex items-center">
+                                        <DollarSign size={14} /> {cust.totalPurchases.toFixed(2)}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Social</span>
+                                    <span className="text-sm font-bold text-gray-700 flex items-center">
+                                        <Instagram size={14} className="mr-1 text-pink-500" /> {cust.instagram ? `@${cust.instagram}` : 'N/A'}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Contact</span>
+                                    <span className="text-sm font-bold text-gray-700 flex items-center">
+                                        <Phone size={14} className="mr-1 text-blue-500" /> {cust.phone || 'N/A'}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Last Order</span>
+                                    <span className="text-sm font-bold text-gray-700">{cust.lastPurchaseDate}</span>
                                 </div>
                             </div>
                         </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 w-full lg:w-auto">
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Spent</span>
-                                <span className="text-sm font-black text-purple-600 flex items-center">
-                                    <DollarSign size={14} /> {cust.totalPurchases.toFixed(2)}
-                                </span>
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Social</span>
-                                <span className="text-sm font-bold text-gray-700 flex items-center">
-                                    <Instagram size={14} className="mr-1 text-pink-500" /> {cust.instagram ? `@${cust.instagram}` : 'N/A'}
-                                </span>
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Contact</span>
-                                <span className="text-sm font-bold text-gray-700 flex items-center">
-                                    <Phone size={14} className="mr-1 text-blue-500" /> {cust.phone || 'N/A'}
-                                </span>
+                    ))}
+                </div>
+            )}
                             </div>
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Last Order</span>
