@@ -19,6 +19,44 @@ const writeDB = async (data) => {
     await fs.writeFile(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
 };
 
+/**
+ * Create a timestamped backup of the database
+ */
+const backupDatabase = async () => {
+    const BACKUP_DIR = path.join(__dirname, '../backups');
+    try {
+        // Ensure backup directory exists
+        if (!fsSync.existsSync(BACKUP_DIR)) {
+            await fs.mkdir(BACKUP_DIR, { recursive: true });
+        }
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupPath = path.join(BACKUP_DIR, `database-backup-${timestamp}.json`);
+        
+        // Copy database file
+        if (fsSync.existsSync(DB_PATH)) {
+            await fs.copyFile(DB_PATH, backupPath);
+            console.log(`✅ Database backup created: ${backupPath}`);
+
+            // Keep only the last 7 backups
+            const files = await fs.readdir(BACKUP_DIR);
+            const backups = files
+                .filter(f => f.startsWith('database-backup-') && f.endsWith('.json'))
+                .sort()
+                .reverse();
+
+            if (backups.length > 7) {
+                for (let i = 7; i < backups.length; i++) {
+                    await fs.unlink(path.join(BACKUP_DIR, backups[i]));
+                    console.log(`🗑️ Deleted old backup: ${backups[i]}`);
+                }
+            }
+        }
+    } catch (err) {
+        console.error('❌ Failed to create database backup:', err.message);
+    }
+};
+
 // --- Real Google Sheets Sync Logic ---
 const syncToGoogleSheets = async (invoice) => {
     const credsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS ? path.join(__dirname, '../', process.env.GOOGLE_APPLICATION_CREDENTIALS) : null;
@@ -201,5 +239,6 @@ module.exports = {
     updateSettings,
     updateInvoiceStatus,
     updateInvoice,
-    deleteInvoice
+    deleteInvoice,
+    backupDatabase
 };

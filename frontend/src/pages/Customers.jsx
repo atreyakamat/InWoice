@@ -164,21 +164,12 @@ const Customers = () => {
                     ))}
                 </div>
             )}
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Last Order</span>
-                                <span className="text-sm font-bold text-gray-700">{cust.lastPurchaseDate}</span>
-                            </div>
-                        </div>
-                    </div>
-                ))}
 
-                {filteredCustomers.length === 0 && (
-                    <div className="bg-white p-12 rounded-2xl border border-dashed border-gray-200 text-center">
-                        <p className="text-gray-400 font-medium">No customers found matching your search.</p>
-                    </div>
-                )}
-            </div>
+            {filteredCustomers.length === 0 && customers.length > 0 && (
+                <div className="text-center py-12">
+                    <p className="text-gray-600">No customers found matching your search</p>
+                </div>
+            )}
         </div>
     );
 };

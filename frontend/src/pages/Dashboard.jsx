@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import StatsCards from '../components/StatsCards';
 import { 
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
     PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar 
 } from 'recharts';
 import { Users, TrendingUp, ShoppingBag, CreditCard } from 'lucide-react';
+import { api, API_ENDPOINTS } from '../apiConfig';
 
 const Dashboard = () => {
     const [stats, setStats] = useState({ 
@@ -22,18 +22,13 @@ const Dashboard = () => {
     const [methodData, setMethodData] = useState([]);
     const [customerGrowthData, setCustomerGrowthData] = useState([]);
 
-    const authHeader = { headers: { Authorization: localStorage.getItem('token') } };
-
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [invRes, custRes] = await Promise.all([
-                    axios.get('http://localhost:5000/api/invoices', authHeader),
-                    axios.get('http://localhost:5000/api/data/customers', authHeader)
+                const [invoices, customers] = await Promise.all([
+                    api.get(API_ENDPOINTS.INVOICES),
+                    api.get(API_ENDPOINTS.DATA_CUSTOMERS)
                 ]);
-                
-                const invoices = invRes.data;
-                const customers = custRes.data;
                 
                 let revenue = 0;
                 let pending = 0;
@@ -97,10 +92,6 @@ const Dashboard = () => {
         };
         fetchData();
     }, []);
-
-    const extendedStats = [
-        ...StatsCards({ stats }).props.children.props.children, // Reusing logic but adding more
-    ];
 
     return (
         <div className="p-8 bg-gray-50 min-h-screen">

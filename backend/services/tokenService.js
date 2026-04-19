@@ -5,7 +5,7 @@
 
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const logger = require('./logger');
+const logger = require('../utils/logger');
 
 // Ensure JWT_SECRET is set
 const JWT_SECRET = process.env.JWT_SECRET || 'CHANGE_THIS_IN_PRODUCTION';
