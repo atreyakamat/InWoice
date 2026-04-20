@@ -92,7 +92,11 @@ export const API_ENDPOINTS = {
   },
   
   // AI
-  AI_PARSE: `${API_BASE_URL}/api/ai/parse`
+  AI_PARSE: `${API_BASE_URL}/api/ai/parse`,
+  AI_INSIGHTS: `${API_BASE_URL}/api/ai/insights`,
+  
+  // Analytics
+  ANALYTICS: `${API_BASE_URL}/api/analytics`
 };
 
 /**

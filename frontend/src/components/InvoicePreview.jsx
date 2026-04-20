@@ -5,7 +5,11 @@ const InvoicePreview = ({ formData, items, subtotal, grandTotal, settings }) => 
         <div className="bg-white p-10 shadow-2xl rounded-lg border border-gray-100 min-h-[1000px] transform scale-[0.85] origin-top font-serif">
             <div className="flex justify-between border-b-2 border-purple-100 pb-6 mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-purple-600 uppercase tracking-tighter italic">Stix N Vibes</h1>
+                    {settings.logo ? (
+                        <img src={settings.logo} alt="Logo" className="h-12 w-auto mb-2 object-contain" />
+                    ) : (
+                        <h1 className="text-3xl font-bold text-purple-600 uppercase tracking-tighter italic">{settings.businessName || 'Stix N Vibes'}</h1>
+                    )}
                     <div className="text-xs text-gray-500 mt-2 space-y-1">
                         <p>{settings.address || '123 Sticker Ave, Art City'}</p>
                         <p>{settings.email || 'hello@stixnvibes.com'} | {settings.phone || '+1 234 567 890'}</p>

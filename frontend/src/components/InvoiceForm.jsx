@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Mic, Bot, Loader2, Send, Download, Share2 } from 'lucide-react';
-import axios from 'axios';
+import { api, API_ENDPOINTS, default as apiClient } from '../apiConfig';
 
 const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTotal, settings }) => {
     const [availableProducts, setAvailableProducts] = useState([]);
@@ -11,16 +11,15 @@ const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTo
 
     useEffect(() => {
         const fetchData = async () => {
-            const authHeader = { headers: { Authorization: localStorage.getItem('token') } };
             try {
-                const [prodRes, custRes] = await Promise.all([
-                    axios.get('http://localhost:5000/api/products', authHeader),
-                    axios.get('http://localhost:5000/api/data/customers', authHeader)
+                const [products, customers] = await Promise.all([
+                    api.get(API_ENDPOINTS.PRODUCTS),
+                    api.get(API_ENDPOINTS.DATA_CUSTOMERS)
                 ]);
-                setAvailableProducts(prodRes.data);
-                setAvailableCustomers(custRes.data);
+                setAvailableProducts(products || []);
+                setAvailableCustomers(customers || []);
             } catch (err) {
-                console.error(err);
+                console.error('Error fetching form data:', err);
             }
         };
         fetchData();
@@ -95,15 +94,15 @@ const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTo
         }
 
         try {
-            const res = await axios.post('http://localhost:5000/api/invoices', payload);
-            const { invoice } = res.data;
+            const res = await api.post(API_ENDPOINTS.INVOICES, payload);
+            const invoice = res.invoice;
 
             if (action === 'pdf') {
-                const pdfRes = await axios.post(`http://localhost:5000/api/invoices/${invoice.invoiceID}/generate-pdf`, {}, { responseType: 'blob' });
+                const pdfRes = await apiClient.post(API_ENDPOINTS.INVOICE_PDF(invoice.invoiceID), {}, { responseType: 'blob' });
                 const url = window.URL.createObjectURL(new Blob([pdfRes.data]));
                 const link = document.createElement('a'); link.href = url; link.setAttribute('download', `${invoice.invoiceID}.pdf`); document.body.appendChild(link); link.click();
             } else if (action === 'email') {
-                await axios.post(`http://localhost:5000/api/email/send/${invoice.invoiceID}`);
+                await api.post(API_ENDPOINTS.EMAIL_SEND + '/' + invoice.invoiceID);
                 alert('Sent to ' + formData.customerEmail);
             } else if (action === 'whatsapp') {
                 const invoiceUrl = `${window.location.origin}/view-invoice/${invoice.invoiceID}`;
@@ -114,7 +113,8 @@ const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTo
             }
             localStorage.removeItem('invoice_draft');
         } catch (error) {
-            alert('Error processing request.');
+            console.error('Submit error:', error);
+            alert('Error processing request: ' + (error.message || 'Unknown error'));
         }
     };
 
@@ -126,7 +126,7 @@ const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTo
                 if (outbox.length > 0) {
                     console.log('Syncing offline outbox...');
                     for (const item of outbox) {
-                        try { await axios.post('http://localhost:5000/api/invoices', item); } catch(e) {}
+                        try { await api.post(API_ENDPOINTS.INVOICES, item); } catch(e) {}
                     }
                     localStorage.setItem('offline_outbox', '[]');
                     alert('Back Online! All offline invoices have been synced.');
@@ -147,8 +147,7 @@ const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTo
             setIsListening(false);
             setIsAiProcessing(true);
             try {
-                const aiRes = await axios.post('http://localhost:5000/api/ai/parse', { text: transcript });
-                const data = aiRes.data;
+                const data = await api.post(API_ENDPOINTS.AI_PARSE, { text: transcript });
                 setFormData(prev => ({ ...prev, customerName: data.customerName || prev.customerName, customerEmail: data.customerEmail || prev.customerEmail }));
                 if (data.items) setItems(data.items.map((it, i) => ({ id: Date.now()+i, name: it.name, quantity: it.quantity, price: it.price, total: it.quantity*it.price })));
             } catch(e) {} finally { setIsAiProcessing(false); }

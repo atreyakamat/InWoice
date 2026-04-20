@@ -1,101 +1,93 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { 
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-    ComposedChart, Line, Area, Cell, Legend 
-} from 'recharts';
-import { PieChart, Pie } from 'recharts';
+import { api, API_ENDPOINTS } from '../apiConfig';
 
 const Analytics = () => {
-    const [topCustomers, setTopCustomers] = useState([]);
-    const [revenueByMonth, setRevenueByMonth] = useState([]);
-    const [dailyRevenue, setDailyRevenue] = useState([]);
-    const [topProducts, setTopProducts] = useState([]);
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [aiInsights, setAiInsights] = useState([]);
+    const [aiLoading, setAiLoading] = useState(false);
 
-    const authHeader = { headers: { Authorization: localStorage.getItem('token') } };
+    const fetchAiInsights = async (summary, trends) => {
+        setAiLoading(true);
+        try {
+            const res = await api.post(API_ENDPOINTS.AI_INSIGHTS, { summary, trends });
+            setAiInsights(res.insights || []);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setAiLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchData = async () => {
+        const fetchAnalytics = async () => {
             try {
-                const res = await axios.get('http://localhost:5000/api/invoices', authHeader);
-                const invoices = res.data;
-
-                const monthly = {};
-                const daily = {};
-                const customers = {};
-                const products = {};
-
-                invoices.forEach(inv => {
-                    const date = new Date(inv.date);
-                    
-                    // Monthly
-                    const monthKey = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-                    monthly[monthKey] = (monthly[monthKey] || 0) + inv.grandTotal;
-
-                    // Daily (Last 14 days)
-                    const dayKey = date.toISOString().split('T')[0];
-                    daily[dayKey] = (daily[dayKey] || 0) + inv.grandTotal;
-
-                    // Top customers
-                    customers[inv.customerName] = (customers[inv.customerName] || 0) + inv.grandTotal;
-
-                    // Top products
-                    try {
-                        const items = typeof inv.itemsJSON === 'string' ? JSON.parse(inv.itemsJSON) : inv.itemsJSON;
-                        items.forEach(item => {
-                            products[item.name] = (products[item.name] || 0) + item.quantity;
-                        });
-                    } catch(e) {}
-                });
-
-                setRevenueByMonth(Object.keys(monthly).map(k => ({ name: k, Revenue: monthly[k] })));
-                
-                // Sort daily and take last 14
-                const sortedDaily = Object.keys(daily)
-                    .sort()
-                    .slice(-14)
-                    .map(k => ({ name: k.split('-').slice(1).join('/'), Revenue: daily[k] }));
-                setDailyRevenue(sortedDaily);
-
-                const sortedCustomers = Object.keys(customers)
-                    .map(k => ({ name: k, Spent: customers[k] }))
-                    .sort((a, b) => b.Spent - a.Spent)
-                    .slice(0, 5);
-                setTopCustomers(sortedCustomers);
-
-                const sortedProducts = Object.keys(products)
-                    .map(k => ({ name: k, Sold: products[k] }))
-                    .sort((a, b) => b.Sold - a.Sold)
-                    .slice(0, 5);
-                setTopProducts(sortedProducts);
-
+                const res = await api.get(API_ENDPOINTS.ANALYTICS);
+                setData(res);
             } catch (err) {
                 console.error(err);
+            } finally {
+                setLoading(false);
             }
         };
-        fetchData();
+        fetchAnalytics();
     }, []);
 
+    if (loading) return <div className="p-8 text-center text-gray-500">Loading Intelligence...</div>;
+    if (!data) return <div className="p-8 text-center text-red-500">Failed to load analytics.</div>;
+
     const COLORS = ['#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b'];
+    const { summary, trends, distributions, settings } = data;
+    const currency = settings.defaultCurrency || '$';
 
     return (
         <div className="p-8 bg-gray-50 min-h-screen">
-            <h1 className="text-3xl font-black text-gray-800 uppercase tracking-tighter italic mb-8">Business Intelligence</h1>
+            <div className="flex justify-between items-end mb-8">
+                <div>
+                    <h1 className="text-3xl font-black text-gray-800 uppercase tracking-tighter italic">Business Intelligence</h1>
+                    <p className="text-gray-500 text-sm">Real-time data from {summary.totalInvoices} invoices</p>
+                </div>
+                <div className="text-right">
+                    <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Total Revenue</div>
+                    <div className="text-3xl font-black text-purple-600 tracking-tighter">{currency}{summary.totalRevenue.toLocaleString()}</div>
+                </div>
+            </div>
+
+            {/* Top Row Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">Growth (MoM)</p>
+                    <h3 className={`text-2xl font-black ${summary.momGrowth >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {summary.momGrowth >= 0 ? '+' : ''}{summary.momGrowth.toFixed(1)}%
+                    </h3>
+                </div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">Avg Order Value</p>
+                    <h3 className="text-2xl font-black text-gray-800">{currency}{summary.avgOrderValue.toFixed(0)}</h3>
+                </div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">Items Sold</p>
+                    <h3 className="text-2xl font-black text-blue-500">{summary.totalItemsSold}</h3>
+                </div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">This Month</p>
+                    <h3 className="text-2xl font-black text-purple-600">{currency}{summary.revenueThisMonth.toLocaleString()}</h3>
+                </div>
+            </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* 1. Daily Revenue Trend */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h2 className="text-lg font-bold text-gray-800 mb-6">Daily Performance (Last 14 Days)</h2>
+                    <h2 className="text-lg font-bold text-gray-800 mb-6">Revenue Trend (Last 30 Days)</h2>
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
-                            <ComposedChart data={dailyRevenue}>
+                            <ComposedChart data={trends.daily}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
+                                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
                                 <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
                                 <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
-                                <Area type="monotone" dataKey="Revenue" fill="#8b5cf6" fillOpacity={0.1} stroke="none" />
-                                <Bar dataKey="Revenue" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={20} />
-                                <Line type="monotone" dataKey="Revenue" stroke="#8b5cf6" strokeWidth={2} dot={{r: 3, fill: '#8b5cf6', strokeWidth: 0}} />
+                                <Area type="monotone" dataKey="revenue" fill="#8b5cf6" fillOpacity={0.1} stroke="none" />
+                                <Bar dataKey="revenue" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={20} />
+                                <Line type="monotone" dataKey="revenue" stroke="#8b5cf6" strokeWidth={2} dot={{r: 3, fill: '#8b5cf6', strokeWidth: 0}} />
                             </ComposedChart>
                         </ResponsiveContainer>
                     </div>
@@ -106,12 +98,12 @@ const Analytics = () => {
                     <h2 className="text-lg font-bold text-gray-800 mb-6">Monthly Growth</h2>
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={revenueByMonth}>
+                            <BarChart data={trends.monthly}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
                                 <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
                                 <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
-                                <Bar dataKey="Revenue" fill="#ec4899" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="revenue" fill="#ec4899" radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
@@ -119,23 +111,24 @@ const Analytics = () => {
 
                 {/* 3. Top Products */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h2 className="text-lg font-bold text-gray-800 mb-6">Best Selling Products (Quantity)</h2>
+                    <h2 className="text-lg font-bold text-gray-800 mb-6">Top Products (By Revenue)</h2>
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie 
-                                    data={topProducts} 
+                                    data={distributions.products} 
                                     innerRadius={70} 
                                     outerRadius={100} 
                                     paddingAngle={5} 
-                                    dataKey="Sold"
+                                    dataKey="revenue"
+                                    nameKey="name"
                                     label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
                                 >
-                                    {topProducts.map((entry, index) => (
+                                    {distributions.products.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
-                                <Tooltip />
+                                <Tooltip formatter={(value) => `${currency}${value}`} />
                                 <Legend verticalAlign="bottom" height={36}/>
                             </PieChart>
                         </ResponsiveContainer>
@@ -144,19 +137,52 @@ const Analytics = () => {
 
                 {/* 4. Top Spenders */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h2 className="text-lg font-bold text-gray-800 mb-6">Whale Customers (By Spend)</h2>
+                    <h2 className="text-lg font-bold text-gray-800 mb-6">Top Customers (Total Spend)</h2>
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={topCustomers} layout="vertical">
+                            <BarChart data={distributions.customers} layout="vertical">
                                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                 <XAxis type="number" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
                                 <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#64748b'}} width={100} />
-                                <Tooltip cursor={{fill: '#f8fafc'}} />
-                                <Bar dataKey="Spent" fill="#10b981" radius={[0, 4, 4, 0]} />
+                                <Tooltip cursor={{fill: '#f8fafc'}} formatter={(value) => `${currency}${value}`} />
+                                <Bar dataKey="spent" fill="#10b981" radius={[0, 4, 4, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
+            </div>
+
+            {/* AI Insights Section */}
+            <div className="mt-8 bg-gradient-to-br from-purple-600 to-indigo-700 p-8 rounded-2xl shadow-lg text-white">
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 className="text-xl font-bold flex items-center">
+                            <span className="mr-2">✨</span> AI Business Analyst Insights
+                        </h2>
+                        <p className="text-purple-100 text-sm">Smart recommendations based on your business data</p>
+                    </div>
+                    <button 
+                        onClick={() => fetchAiInsights(summary, trends)}
+                        disabled={aiLoading}
+                        className="px-4 py-2 bg-white text-purple-600 rounded-lg font-bold hover:bg-purple-50 transition disabled:opacity-50"
+                    >
+                        {aiLoading ? 'Analyzing...' : 'Generate New Insights'}
+                    </button>
+                </div>
+
+                {aiInsights.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {aiInsights.map((insight, i) => (
+                            <div key={i} className="bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/20">
+                                <p className="text-sm leading-relaxed">{insight}</p>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-8 bg-black/10 rounded-xl border border-white/5">
+                        <p className="text-purple-100 italic">Click the button above to have AI analyze your business performance.</p>
+                    </div>
+                )}
             </div>
         </div>
     );

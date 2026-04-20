@@ -34,8 +34,32 @@ const productSchema = z.object({
     price: z.number().positive()
 });
 
+/**
+ * Middleware to validate request body against a Zod schema
+ * @param {z.ZodSchema} schema - Zod schema to validate against
+ */
+const validate = (schema) => (req, res, next) => {
+    try {
+        req.body = schema.parse(req.body);
+        next();
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({
+                success: false,
+                error: 'Validation failed',
+                details: error.errors.map(e => ({
+                    path: e.path.join('.'),
+                    message: e.message
+                }))
+            });
+        }
+        next(error);
+    }
+};
+
 module.exports = {
     invoiceSchema,
     productSchema,
-    itemSchema
+    itemSchema,
+    validate
 };

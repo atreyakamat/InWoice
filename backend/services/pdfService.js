@@ -3,24 +3,37 @@ const fs = require('fs');
 const path = require('path');
 const QRCode = require('qrcode');
 const he = require('he');
+const genericPool = require('generic-pool');
 const { getSettings } = require('./googleSheetsService');
 
-let browserInstance = null;
 let templateCache = null;
 
-const getBrowser = async () => {
-    if (!browserInstance) {
-        browserInstance = await puppeteer.launch({
+/**
+ * Browser pool to reuse puppeteer instances
+ */
+const factory = {
+    create: async () => {
+        return await puppeteer.launch({
             headless: 'new',
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
         });
-        // Handle unexpected browser closure
-        browserInstance.on('disconnected', () => {
-            browserInstance = null;
-        });
+    },
+    destroy: async (browser) => {
+        await browser.close();
+    },
+    validate: (browser) => {
+        return browser.isConnected();
     }
-    return browserInstance;
 };
+
+const browserPool = genericPool.createPool(factory, {
+    max: 3, // maximum number of browsers
+    min: 1, // minimum number of browsers
+    testOnBorrow: true,
+    autostart: true,
+    idleTimeoutMillis: 30000, // 30 seconds
+    evictionRunIntervalMillis: 1000,
+});
 
 /**
  * Load and cache the invoice template
@@ -63,8 +76,14 @@ const generatePDF = async (invoiceData) => {
         }
     }
 
+    let logoHTML = '';
+    if (settings.logo) {
+        logoHTML = `<img src="${settings.logo}" alt="Logo" style="max-height: 60px; max-width: 200px; margin-bottom: 10px; object-fit: contain;" />`;
+    }
+
     const replacements = {
         businessName: sanitize(settings.businessName) || 'Stix N Vibes',
+        logoHTML: logoHTML,
         address: sanitize(settings.address) || '',
         email: sanitize(settings.email) || '',
         phone: sanitize(settings.phone) || '',
@@ -112,7 +131,7 @@ const generatePDF = async (invoiceData) => {
         template = template.replace(new RegExp(`{{${key}}}`, 'g'), strValue);
     }
 
-    const browser = await getBrowser();
+    const browser = await browserPool.acquire();
     const page = await browser.newPage();
     try {
         await page.setContent(template, { waitUntil: 'networkidle0' });
@@ -123,11 +142,12 @@ const generatePDF = async (invoiceData) => {
         });
         return pdfBuffer;
     } finally {
-        await page.close(); // Only close the page, not the browser
+        await page.close(); 
+        await browserPool.release(browser);
     }
 };
 
 module.exports = { 
     generatePDF,
-    clearTemplateCache // Export for testing/development
+    clearTemplateCache 
 };

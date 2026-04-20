@@ -9,6 +9,7 @@ const Settings = () => {
         address: '',
         website: '',
         upiId: '',
+        logo: '',
         defaultCurrency: '$',
         taxPercent: 0,
         smtpHost: '',
@@ -38,6 +39,17 @@ const Settings = () => {
         setSettings(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setSettings(prev => ({ ...prev, logo: reader.result }));
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
     const handleSave = async () => {
         try {
             await axios.post('http://localhost:5000/api/data/settings', settings, {
@@ -60,7 +72,18 @@ const Settings = () => {
             </div>
 
             <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 mb-8">
-                <h2 className="text-xl font-bold mb-6 text-gray-800 border-b pb-2">Business Details</h2>
+                <div className="flex justify-between items-center border-b pb-2 mb-6">
+                    <h2 className="text-xl font-bold text-gray-800">Business Details</h2>
+                    <div className="flex items-center space-x-4">
+                        {settings.logo && (
+                            <img src={settings.logo} alt="Business Logo" className="h-12 w-12 object-contain border rounded p-1" />
+                        )}
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Business Logo</label>
+                            <input type="file" accept="image/*" onChange={handleFileChange} className="text-xs" />
+                        </div>
+                    </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Business Name</label>

@@ -1,21 +1,22 @@
 const express = require('express');
 const router = express.Router();
-const { addInvoice, getInvoices } = require('../services/googleSheetsService');
+const { 
+    addInvoice, 
+    getInvoices, 
+    updateInvoiceStatus, 
+    updateInvoice, 
+    deleteInvoice 
+} = require('../services/googleSheetsService');
 const { generatePDF } = require('../services/pdfService');
-const { invoiceSchema } = require('../utils/validation');
+const { invoiceSchema, validate } = require('../utils/validation');
 const { customAlphabet } = require('nanoid');
 
 // Custom nanoid for invoice IDs: shorter, readable, uppercase
 const nanoid = customAlphabet('1234567890ABCDEFGHJKLMNPQRSTUVWXYZ', 6);
 
-router.post('/', async (req, res) => {
+router.post('/', validate(invoiceSchema), async (req, res) => {
     try {
-        const validation = invoiceSchema.safeParse(req.body);
-        if (!validation.success) {
-            return res.status(400).json({ error: 'Validation failed', details: validation.error.format() });
-        }
-
-        const invoiceData = validation.data;
+        const invoiceData = req.body;
         // Generate Secure Invoice ID
         const year = new Date().getFullYear();
         invoiceData.invoiceID = `SNV-${year}-${nanoid()}`;
@@ -77,7 +78,6 @@ router.get('/', async (req, res) => {
 router.patch('/:id/status', async (req, res) => {
     try {
         const { status } = req.body;
-        const { updateInvoiceStatus } = require('../services/googleSheetsService');
         const updated = await updateInvoiceStatus(req.params.id, status);
         res.json(updated);
     } catch (error) {
@@ -87,7 +87,6 @@ router.patch('/:id/status', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
     try {
-        const { deleteInvoice } = require('../services/googleSheetsService');
         await deleteInvoice(req.params.id);
         res.json({ message: 'Invoice deleted successfully' });
     } catch (error) {
@@ -158,21 +157,10 @@ router.post('/:id/duplicate', async (req, res) => {
  * Update entire invoice (edit functionality)
  * PUT /api/invoices/:id
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', validate(invoiceSchema), async (req, res) => {
     try {
         const invoiceID = req.params.id;
-        const { updateInvoice } = require('../services/googleSheetsService');
-        
-        // Validate the updated data
-        const validation = invoiceSchema.safeParse(req.body);
-        if (!validation.success) {
-            return res.status(400).json({ 
-                error: 'Validation failed', 
-                details: validation.error.format() 
-            });
-        }
-
-        const updatedInvoice = await updateInvoice(invoiceID, validation.data);
+        const updatedInvoice = await updateInvoice(invoiceID, req.body);
         res.json({ 
             message: 'Invoice updated successfully', 
             invoice: updatedInvoice 

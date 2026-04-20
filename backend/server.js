@@ -15,6 +15,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const cron = require('node-cron');
 
 const invoiceRoutes = require('./routes/invoiceRoutes');
 const emailRoutes = require('./routes/emailRoutes');
@@ -23,13 +24,26 @@ const aiRoutes = require('./routes/aiRoutes');
 const productRoutes = require('./routes/productRoutes');
 const webInvoiceRoutes = require('./routes/webInvoiceRoutes');
 const authRoutes = require('./routes/authRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 
 const { authMiddleware } = require('./utils/authMiddleware');
 const { errorHandler, notFoundHandler } = require('./utils/errorHandler');
 const logger = require('./utils/logger');
+const { backupDatabase } = require('./services/googleSheetsService');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Schedule database backup: daily at 3:00 AM
+cron.schedule('0 3 * * *', async () => {
+  logger.info('Running scheduled database backup...');
+  await backupDatabase();
+});
+
+// Run backup once on startup in production
+if (process.env.NODE_ENV === 'production') {
+  backupDatabase();
+}
 
 // Security middleware
 app.use(helmet({
@@ -118,6 +132,7 @@ app.use('/api/email', authMiddleware, apiLimiter, emailRoutes);
 app.use('/api/data', authMiddleware, apiLimiter, sheetRoutes);
 app.use('/api/ai', authMiddleware, apiLimiter, aiRoutes);
 app.use('/api/products', authMiddleware, apiLimiter, productRoutes);
+app.use('/api/analytics', authMiddleware, apiLimiter, analyticsRoutes);
 app.use('/api/customers', authMiddleware, apiLimiter, require('./routes/customerRoutes'));
 app.use('/api/export', authMiddleware, apiLimiter, require('./routes/exportRoutes'));
 
