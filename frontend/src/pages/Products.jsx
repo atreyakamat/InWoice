@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api, API_ENDPOINTS } from '../apiConfig';
 import { Plus, Trash2 } from 'lucide-react';
 
 const Products = () => {
@@ -12,10 +12,8 @@ const Products = () => {
 
     const fetchProducts = async () => {
         try {
-            const res = await axios.get('http://localhost:5000/api/products', {
-                headers: { Authorization: localStorage.getItem('token') }
-            });
-            setProducts(res.data);
+            const res = await api.get(API_ENDPOINTS.PRODUCTS);
+            setProducts(res);
         } catch (err) {
             console.error(err);
         }
@@ -27,9 +25,7 @@ const Products = () => {
             return;
         }
         try {
-            await axios.post('http://localhost:5000/api/products', newProduct, {
-                headers: { Authorization: localStorage.getItem('token') }
-            });
+            await api.post(API_ENDPOINTS.PRODUCTS, newProduct);
             setNewProduct({ name: '', category: '', price: 0 });
             fetchProducts();
         } catch (error) {
@@ -41,9 +37,7 @@ const Products = () => {
     const handleDelete = async (id) => {
         if (!window.confirm('Are you sure?')) return;
         try {
-            await axios.delete(`http://localhost:5000/api/products/${id}`, {
-                headers: { Authorization: localStorage.getItem('token') }
-            });
+            await api.delete(API_ENDPOINTS.PRODUCT_BY_ID(id));
             fetchProducts();
         } catch (error) {
             console.error(error);

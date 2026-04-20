@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api, API_ENDPOINTS } from '../apiConfig';
 import InvoiceTable from '../components/InvoiceTable';
 
 const Invoices = () => {
@@ -8,11 +8,9 @@ const Invoices = () => {
 
     const fetchInvoices = async () => {
         try {
-            const res = await axios.get('http://localhost:5000/api/invoices', {
-                headers: { Authorization: localStorage.getItem('token') }
-            });
+            const res = await api.get(API_ENDPOINTS.INVOICES);
             // sort descending by date or ID
-            const sorted = res.data.reverse();
+            const sorted = [...res].reverse();
             setInvoices(sorted);
         } catch (err) {
             console.error(err);

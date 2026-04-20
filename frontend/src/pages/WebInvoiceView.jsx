@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
 import { Download, CheckCircle, Clock } from 'lucide-react';
 import InvoicePreview from '../components/InvoicePreview';
+import { api, API_ENDPOINTS } from '../apiConfig';
 
 const WebInvoiceView = () => {
     const { id } = useParams();
@@ -12,8 +12,8 @@ const WebInvoiceView = () => {
     useEffect(() => {
         const fetchInvoice = async () => {
             try {
-                const res = await axios.get(`http://localhost:5000/api/web-invoices/${id}`);
-                setData(res.data);
+                const res = await api.get(API_ENDPOINTS.WEB_INVOICE_BY_ID(id));
+                setData(res);
             } catch (err) {
                 console.error(err);
             } finally {
@@ -25,8 +25,8 @@ const WebInvoiceView = () => {
 
     const handleDownload = async () => {
         try {
-            const pdfRes = await axios.post(`http://localhost:5000/api/invoices/${id}/generate-pdf`, {}, { responseType: 'blob' });
-            const url = window.URL.createObjectURL(new Blob([pdfRes.data]));
+            const pdfRes = await api.post(API_ENDPOINTS.INVOICE_PDF(id), {}, { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([pdfRes]));
             const link = document.createElement('a');
             link.href = url;
             link.setAttribute('download', `${id}.pdf`);

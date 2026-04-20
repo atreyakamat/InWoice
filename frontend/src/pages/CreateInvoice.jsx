@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api, API_ENDPOINTS } from '../apiConfig';
 import InvoiceForm from '../components/InvoiceForm';
 import InvoicePreview from '../components/InvoicePreview';
 
 const CreateInvoice = () => {
+    // ... rest of state unchanged
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
         dueDate: '',
@@ -30,10 +31,8 @@ const CreateInvoice = () => {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const res = await axios.get('http://localhost:5000/api/data/settings', {
-                    headers: { Authorization: localStorage.getItem('token') }
-                });
-                setSettings(res.data);
+                const res = await api.get(API_ENDPOINTS.DATA_SETTINGS);
+                setSettings(res);
             } catch (err) {
                 console.error(err);
             }

@@ -1,3 +1,20 @@
+import React, { useState, useEffect } from 'react';
+import { 
+    ResponsiveContainer, 
+    ComposedChart, 
+    BarChart, 
+    PieChart, 
+    Pie, 
+    Cell, 
+    XAxis, 
+    YAxis, 
+    CartesianGrid, 
+    Tooltip, 
+    Legend, 
+    Area, 
+    Bar, 
+    Line 
+} from 'recharts';
 import { api, API_ENDPOINTS } from '../apiConfig';
 
 const Analytics = () => {

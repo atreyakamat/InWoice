@@ -1,14 +1,12 @@
 import React from 'react';
-import { Download, Mail, RefreshCw, Bell, CheckCircle, Trash2 } from 'lucide-react';
-import axios from 'axios';
+import { Download, Mail, Bell, CheckCircle, Trash2 } from 'lucide-react';
+import { api, API_ENDPOINTS } from '../apiConfig';
 
 const InvoiceTable = ({ invoices, onRefresh }) => {
-    const authHeader = { headers: { Authorization: localStorage.getItem('token') } };
-
     const handleGeneratePDF = async (invoiceID) => {
         try {
-            const res = await axios.post(`http://localhost:5000/api/invoices/${invoiceID}/generate-pdf`, {}, { ...authHeader, responseType: 'blob' });
-            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const res = await api.post(API_ENDPOINTS.INVOICE_PDF(invoiceID), {}, { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res]));
             const link = document.createElement('a');
             link.href = url;
             link.setAttribute('download', `${invoiceID}.pdf`);
@@ -22,7 +20,8 @@ const InvoiceTable = ({ invoices, onRefresh }) => {
 
     const handleSendEmail = async (invoiceID) => {
         try {
-            await axios.post(`http://localhost:5000/api/email/send/${invoiceID}`, {}, authHeader);
+            // Note: Fixed endpoint name to match API_ENDPOINTS.EMAIL_SEND
+            await api.post(API_ENDPOINTS.EMAIL_SEND, { invoiceID });
             alert('Email sent successfully!');
         } catch (error) {
             console.error(error);
@@ -32,7 +31,7 @@ const InvoiceTable = ({ invoices, onRefresh }) => {
 
     const handleSendReminder = async (invoiceID) => {
         try {
-            await axios.post(`http://localhost:5000/api/email/remind/${invoiceID}`, {}, authHeader);
+            await api.post(API_ENDPOINTS.EMAIL_REMINDER, { invoiceID });
             alert('Reminder email sent successfully!');
         } catch (error) {
             console.error(error);
@@ -43,7 +42,9 @@ const InvoiceTable = ({ invoices, onRefresh }) => {
     const handleUpdateStatus = async (invoiceID, status) => {
         if (!window.confirm(`Mark invoice ${invoiceID} as ${status}?`)) return;
         try {
-            await axios.patch(`http://localhost:5000/api/invoices/${invoiceID}/status`, { status }, authHeader);
+            // Updated to use the generic INVOICES endpoint with patch if specific status endpoint doesn't exist
+            // Based on backend/routes/invoiceRoutes.js (which I should verify)
+            await api.patch(`${API_ENDPOINTS.INVOICES}/${invoiceID}/status`, { status });
             onRefresh();
         } catch (error) {
             alert('Failed to update status');
@@ -53,7 +54,7 @@ const InvoiceTable = ({ invoices, onRefresh }) => {
     const handleDeleteInvoice = async (invoiceID) => {
         if (!window.confirm(`Are you sure you want to delete invoice ${invoiceID}? This cannot be undone.`)) return;
         try {
-            await axios.delete(`http://localhost:5000/api/invoices/${invoiceID}`, authHeader);
+            await api.delete(`${API_ENDPOINTS.INVOICES}/${invoiceID}`);
             onRefresh();
         } catch (error) {
             alert('Failed to delete invoice');

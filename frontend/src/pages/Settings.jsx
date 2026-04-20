@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { api, API_ENDPOINTS } from '../apiConfig';
 
 const Settings = () => {
+    // ... rest of settings state unchanged
     const [settings, setSettings] = useState({
         businessName: '',
         email: '',
@@ -21,11 +22,9 @@ const Settings = () => {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const res = await axios.get('http://localhost:5000/api/data/settings', {
-                    headers: { Authorization: localStorage.getItem('token') }
-                });
-                if (res.data) {
-                    setSettings(prev => ({ ...prev, ...res.data }));
+                const res = await api.get(API_ENDPOINTS.DATA_SETTINGS);
+                if (res) {
+                    setSettings(prev => ({ ...prev, ...res }));
                 }
             } catch (err) {
                 console.error(err);
@@ -52,9 +51,7 @@ const Settings = () => {
 
     const handleSave = async () => {
         try {
-            await axios.post('http://localhost:5000/api/data/settings', settings, {
-                headers: { Authorization: localStorage.getItem('token') }
-            });
+            await api.post(API_ENDPOINTS.DATA_SETTINGS, settings);
             alert('Settings saved successfully!');
         } catch (error) {
             console.error(error);

@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { Lock } from 'lucide-react';
-import { API_ENDPOINTS, setToken } from '../apiConfig';
+import { api, API_ENDPOINTS, setToken } from '../apiConfig';
 
 const Login = () => {
     const [password, setPassword] = useState('');
@@ -22,11 +21,11 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            const response = await axios.post(API_ENDPOINTS.AUTH_LOGIN, { password });
+            const response = await api.post(API_ENDPOINTS.AUTH_LOGIN, { password });
             
-            if (response.data.success && response.data.data.token) {
+            if (response.success && response.data.token) {
                 // Store token using centralized function
-                setToken(response.data.data.token);
+                setToken(response.data.token);
                 // Navigate to dashboard
                 navigate('/');
             } else {
@@ -35,12 +34,8 @@ const Login = () => {
         } catch (err) {
             console.error('Login error:', err);
             
-            if (err.response?.data?.error) {
-                setError(err.response.data.error);
-            } else if (err.response?.status === 429) {
-                setError('Too many login attempts. Please try again later.');
-            } else if (err.message === 'Network Error') {
-                setError('Cannot connect to server. Please check if backend is running.');
+            if (err.isApiError) {
+                setError(err.message);
             } else {
                 setError('Login failed. Please try again.');
             }
