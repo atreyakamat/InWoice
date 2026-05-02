@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getInvoices, getSettings } = require('../services/googleSheetsService');
+const { getInvoices, getSettings } = require('../services/dbService');
 const { generatePDF } = require('../services/pdfService');
 const { sendInvoiceEmail } = require('../services/emailService');
 const nodemailer = require('nodemailer');

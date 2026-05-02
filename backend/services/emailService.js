@@ -1,5 +1,5 @@
 const nodemailer = require('nodemailer');
-const { getSettings } = require('./googleSheetsService');
+const { getSettings } = require('./dbService');
 
 const sendInvoiceEmail = async (invoiceData, pdfBuffer) => {
     const settings = await getSettings();

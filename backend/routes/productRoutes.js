@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getProducts, addProduct, deleteProduct } = require('../services/googleSheetsService');
+const { getProducts, addProduct, deleteProduct } = require('../services/dbService');
 const { productSchema } = require('../utils/validation');
 
 router.get('/', async (req, res) => {

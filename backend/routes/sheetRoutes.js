@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getCustomers, getSettings, updateSettings } = require('../services/googleSheetsService');
+const { getCustomers, getSettings, updateSettings } = require('../services/dbService');
 
 router.get('/customers', async (req, res) => {
     try {

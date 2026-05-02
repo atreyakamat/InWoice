@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getCustomers, getInvoices } = require('../services/googleSheetsService');
+const { getCustomers, getInvoices } = require('../services/dbService');
 
 /**
  * Get detailed customer information

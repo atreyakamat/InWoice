@@ -38,14 +38,23 @@ const Settings = () => {
         setSettings(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleFileChange = (e) => {
+    const handleFileChange = async (e) => {
         const file = e.target.files[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setSettings(prev => ({ ...prev, logo: reader.result }));
-            };
-            reader.readAsDataURL(file);
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            try {
+                const res = await api.post(API_ENDPOINTS.UPLOAD, formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+                setSettings(prev => ({ ...prev, logo: res.imageUrl }));
+            } catch (err) {
+                console.error('Upload failed:', err);
+                alert('Failed to upload image.');
+            }
         }
     };
 
@@ -73,7 +82,7 @@ const Settings = () => {
                     <h2 className="text-xl font-bold text-gray-800">Business Details</h2>
                     <div className="flex items-center space-x-4">
                         {settings.logo && (
-                            <img src={settings.logo} alt="Business Logo" className="h-12 w-12 object-contain border rounded p-1" />
+                            <img src={settings.logo.startsWith('http') || settings.logo.startsWith('data:') ? settings.logo : `${API_BASE_URL}${settings.logo}`} alt="Business Logo" className="h-12 w-12 object-contain border rounded p-1" />
                         )}
                         <div>
                             <label className="block text-xs font-medium text-gray-500 mb-1">Business Logo</label>

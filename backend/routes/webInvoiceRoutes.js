@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getInvoices, getSettings } = require('../services/googleSheetsService');
+const { getInvoices, getSettings } = require('../services/dbService');
 
 // Public route to view a web invoice
 router.get('/:id', async (req, res) => {

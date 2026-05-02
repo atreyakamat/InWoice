@@ -6,7 +6,8 @@ const {
     updateInvoiceStatus, 
     updateInvoice, 
     deleteInvoice 
-} = require('../services/googleSheetsService');
+} = require('../services/dbService');
+const { syncToGoogleSheets } = require('../services/googleSheetsService');
 const { generatePDF } = require('../services/pdfService');
 const { invoiceSchema, validate } = require('../utils/validation');
 const { customAlphabet } = require('nanoid');
@@ -23,6 +24,9 @@ router.post('/', validate(invoiceSchema), async (req, res) => {
 
         // Save to DB
         await addInvoice(invoiceData);
+        
+        // Sync to sheets without waiting
+        syncToGoogleSheets(invoiceData).catch(err => console.error('Sync error:', err));
 
         res.status(201).json({ message: 'Invoice created successfully', invoice: invoiceData });
     } catch (error) {

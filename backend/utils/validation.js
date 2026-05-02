@@ -31,7 +31,8 @@ const invoiceSchema = z.object({
 const productSchema = z.object({
     name: z.string().min(1),
     category: z.string().optional(),
-    price: z.number().positive()
+    price: z.number().positive(),
+    image: z.string().optional()
 });
 
 /**

@@ -25,14 +25,19 @@ const productRoutes = require('./routes/productRoutes');
 const webInvoiceRoutes = require('./routes/webInvoiceRoutes');
 const authRoutes = require('./routes/authRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
 
 const { authMiddleware } = require('./utils/authMiddleware');
 const { errorHandler, notFoundHandler } = require('./utils/errorHandler');
 const logger = require('./utils/logger');
-const { backupDatabase } = require('./services/googleSheetsService');
+const { backupDatabase } = require('./services/dbService');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Schedule database backup: daily at 3:00 AM
 cron.schedule('0 3 * * *', async () => {
@@ -133,6 +138,7 @@ app.use('/api/data', authMiddleware, apiLimiter, sheetRoutes);
 app.use('/api/ai', authMiddleware, apiLimiter, aiRoutes);
 app.use('/api/products', authMiddleware, apiLimiter, productRoutes);
 app.use('/api/analytics', authMiddleware, apiLimiter, analyticsRoutes);
+app.use('/api/upload', authMiddleware, apiLimiter, uploadRoutes);
 app.use('/api/customers', authMiddleware, apiLimiter, require('./routes/customerRoutes'));
 app.use('/api/export', authMiddleware, apiLimiter, require('./routes/exportRoutes'));
 

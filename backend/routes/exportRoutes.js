@@ -1,8 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getInvoices } = require('../services/googleSheetsService');
-const { getCustomers } = require('../services/googleSheetsService');
-const { getProducts } = require('../services/googleSheetsService');
+const { getInvoices, getCustomers, getProducts } = require('../services/dbService');
 const { Parser } = require('json2csv');
 
 /**

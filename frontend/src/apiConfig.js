@@ -96,7 +96,10 @@ export const API_ENDPOINTS = {
   AI_INSIGHTS: `${API_BASE_URL}/api/ai/insights`,
   
   // Analytics
-  ANALYTICS: `${API_BASE_URL}/api/analytics`
+  ANALYTICS: `${API_BASE_URL}/api/analytics`,
+  
+  // Upload
+  UPLOAD: `${API_BASE_URL}/api/upload`
 };
 
 /**

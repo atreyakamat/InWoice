@@ -67,6 +67,7 @@ const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTo
                     if (matched) {
                         updatedItem.price = matched.price;
                         updatedItem.variant = matched.category || '';
+                        updatedItem.image = matched.image;
                     }
                 }
                 if (field === 'quantity' || field === 'price' || field === 'name') {
@@ -78,8 +79,10 @@ const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTo
         }));
     };
 
-    const addItem = () => setItems(prev => [...prev, { id: Date.now(), name: '', description: '', variant: '', quantity: 1, price: 0, total: 0 }]);
+    const addItem = () => setItems(prev => [...prev, { id: Date.now(), name: '', description: '', variant: '', quantity: 1, price: 0, total: 0, image: '' }]);
     const removeItem = (id) => setItems(prev => prev.filter(item => item.id !== id));
+// ... rest of component logic unchanged
+
 
     const handleSubmit = async (action) => {
         const payload = { ...formData, itemsJSON: JSON.stringify(items), subtotal, grandTotal };

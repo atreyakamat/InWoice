@@ -4,9 +4,33 @@ const path = require('path');
 const QRCode = require('qrcode');
 const he = require('he');
 const genericPool = require('generic-pool');
-const { getSettings } = require('./googleSheetsService');
+const { getSettings } = require('./dbService');
 
 let templateCache = null;
+
+/**
+ * Convert local image path to base64 data URL for PDF embedding
+ */
+const imageToBase64 = (imageUrl) => {
+    if (!imageUrl) return '';
+    if (imageUrl.startsWith('data:')) return imageUrl;
+    
+    try {
+        // If it's a relative path from our uploads
+        if (imageUrl.startsWith('/uploads/')) {
+            const filePath = path.join(__dirname, '..', imageUrl);
+            if (fs.existsSync(filePath)) {
+                const bitmap = fs.readFileSync(filePath);
+                const ext = path.extname(filePath).slice(1);
+                return `data:image/${ext};base64,${bitmap.toString('base64')}`;
+            }
+        }
+        return imageUrl; // Fallback to original (might be a full URL)
+    } catch (err) {
+        console.error('Error converting image to base64:', err);
+        return imageUrl;
+    }
+};
 
 /**
  * Browser pool to reuse puppeteer instances
@@ -78,7 +102,8 @@ const generatePDF = async (invoiceData) => {
 
     let logoHTML = '';
     if (settings.logo) {
-        logoHTML = `<img src="${settings.logo}" alt="Logo" style="max-height: 60px; max-width: 200px; margin-bottom: 10px; object-fit: contain;" />`;
+        const logoBase64 = imageToBase64(settings.logo);
+        logoHTML = `<img src="${logoBase64}" alt="Logo" style="max-height: 60px; max-width: 200px; margin-bottom: 10px; object-fit: contain;" />`;
     }
 
     const replacements = {
@@ -113,9 +138,20 @@ const generatePDF = async (invoiceData) => {
     let itemsHTML = '';
     const items = typeof invoiceData.itemsJSON === 'string' ? JSON.parse(invoiceData.itemsJSON) : invoiceData.itemsJSON;
     items.forEach(item => {
+        const itemImageBase64 = item.image ? imageToBase64(item.image) : null;
+        const imgTag = itemImageBase64 ? `<img src="${itemImageBase64}" style="width: 30px; height: 30px; object-fit: cover; border-radius: 4px; margin-right: 8px; vertical-align: middle;" />` : '';
+
         itemsHTML += `
             <tr>
-                <td>${sanitize(item.name)}<br><small>${sanitize(item.description) || ''}</small></td>
+                <td>
+                    <div style="display: flex; align-items: center;">
+                        ${imgTag}
+                        <div>
+                            ${sanitize(item.name)}<br>
+                            <small>${sanitize(item.description) || ''}</small>
+                        </div>
+                    </div>
+                </td>
                 <td>${sanitize(item.variant) || ''}</td>
                 <td>${item.quantity}</td>
                 <td>${replacements.currency}${item.price}</td>

@@ -1,12 +1,15 @@
 import React from 'react';
+import { API_BASE_URL } from '../apiConfig';
 
 const InvoicePreview = ({ formData, items, subtotal, grandTotal, settings }) => {
+    const logoUrl = settings.logo ? (settings.logo.startsWith('http') || settings.logo.startsWith('data:') ? settings.logo : `${API_BASE_URL}${settings.logo}`) : null;
+
     return (
         <div className="bg-white p-10 shadow-2xl rounded-lg border border-gray-100 min-h-[1000px] transform scale-[0.85] origin-top font-serif">
             <div className="flex justify-between border-b-2 border-purple-100 pb-6 mb-8">
                 <div>
-                    {settings.logo ? (
-                        <img src={settings.logo} alt="Logo" className="h-12 w-auto mb-2 object-contain" />
+                    {logoUrl ? (
+                        <img src={logoUrl} alt="Logo" className="h-12 w-auto mb-2 object-contain" />
                     ) : (
                         <h1 className="text-3xl font-bold text-purple-600 uppercase tracking-tighter italic">{settings.businessName || 'Stix N Vibes'}</h1>
                     )}
@@ -55,9 +58,14 @@ const InvoicePreview = ({ formData, items, subtotal, grandTotal, settings }) => 
                 <tbody className="divide-y divide-gray-100">
                     {items.map((item, i) => (
                         <tr key={i}>
-                            <td className="py-4 px-4">
-                                <p className="text-sm font-bold text-gray-800">{item.name || 'Item Name'}</p>
-                                <p className="text-[10px] text-gray-400 italic mt-0.5">{item.variant || item.description}</p>
+                            <td className="py-4 px-4 flex items-center space-x-3">
+                                {item.image && (
+                                    <img src={`${API_BASE_URL}${item.image}`} alt={item.name} className="h-10 w-10 object-cover rounded border" />
+                                )}
+                                <div>
+                                    <p className="text-sm font-bold text-gray-800">{item.name || 'Item Name'}</p>
+                                    <p className="text-[10px] text-gray-400 italic mt-0.5">{item.variant || item.description}</p>
+                                </div>
                             </td>
                             <td className="py-4 px-4 text-center text-sm">{item.quantity}</td>
                             <td className="py-4 px-4 text-right text-sm">{settings.defaultCurrency || '$'}{item.price}</td>
