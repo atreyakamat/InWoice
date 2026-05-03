@@ -23,6 +23,7 @@
     "express": "^4.21.1",
     "express-async-errors": "^3.1.1",
     "express-rate-limit": "^7.1.5",
+    "firebase-admin": "^13.8.0",
     "generic-pool": "^3.9.0",
     "googleapis": "^144.0.0",
     "he": "^1.2.0",

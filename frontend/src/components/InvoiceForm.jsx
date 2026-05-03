@@ -193,15 +193,17 @@ const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTo
                 <div className="space-y-3">
                     {items.map((item) => (
                         <div key={item.id} className="group relative bg-gray-50 p-3 rounded-xl border border-transparent hover:border-purple-100 transition-all">
-                            <div className="grid grid-cols-12 gap-2 items-center">
-                                <div className="col-span-7">
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+                                <div className="md:col-span-7">
                                     <input list="prods" type="text" value={item.name} onChange={(e) => handleItemChange(item.id, 'name', e.target.value)} placeholder="Product" className="w-full bg-transparent font-bold outline-none" />
                                     <datalist id="prods">{availableProducts.map(p => <option key={p.id} value={p.name} />)}</datalist>
                                 </div>
-                                <div className="col-span-2 text-center">
-                                    <input type="number" value={item.quantity} onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)} className="w-full bg-transparent text-center outline-none" />
+                                <div className="md:col-span-2 text-left md:text-center mt-2 md:mt-0 flex items-center">
+                                    <span className="text-xs text-gray-400 mr-2 md:hidden">Qty:</span>
+                                    <input type="number" value={item.quantity} onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)} className="w-16 md:w-full bg-transparent md:text-center outline-none border-b md:border-none" />
                                 </div>
-                                <div className="col-span-3 text-right font-bold text-purple-600">
+                                <div className="md:col-span-3 text-left md:text-right font-bold text-purple-600 mt-2 md:mt-0">
+                                    <span className="text-xs text-gray-400 mr-2 md:hidden">Total:</span>
                                     ${item.total.toFixed(2)}
                                 </div>
                             </div>
@@ -229,14 +231,14 @@ const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTo
             </div>
 
             {/* Final Actions */}
-            <div className="grid grid-cols-2 gap-3 pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-4">
                 <button onClick={() => handleSubmit('email')} className="flex items-center justify-center space-x-2 bg-purple-600 text-white p-4 rounded-xl font-bold hover:bg-purple-700 transition-all shadow-lg shadow-purple-100">
                     <Send size={18} /> <span>Email Invoice</span>
                 </button>
                 <button onClick={() => handleSubmit('whatsapp')} className="flex items-center justify-center space-x-2 bg-green-500 text-white p-4 rounded-xl font-bold hover:bg-green-600 transition-all shadow-lg shadow-green-100">
                     <Share2 size={18} /> <span>WhatsApp</span>
                 </button>
-                <button onClick={() => handleSubmit('pdf')} className="col-span-2 flex items-center justify-center space-x-2 bg-gray-800 text-white p-3 rounded-xl font-bold hover:bg-black transition-all">
+                <button onClick={() => handleSubmit('pdf')} className="md:col-span-2 flex items-center justify-center space-x-2 bg-gray-800 text-white p-3 rounded-xl font-bold hover:bg-black transition-all">
                     <Download size={18} /> <span>Download PDF</span>
                 </button>
             </div>

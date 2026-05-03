@@ -51,7 +51,7 @@ const Login = () => {
                     <div className="p-4 bg-purple-50 rounded-full mb-4">
                         <Lock className="text-purple-600" size={32} />
                     </div>
-                    <h1 className="text-2xl font-black text-gray-800 uppercase tracking-tighter italic">InWoice Admin</h1>
+                    <h1 className="text-xl font-black text-gray-800 uppercase tracking-tighter italic">Stix N Vibes Admin</h1>
                     <p className="text-gray-400 text-sm mt-1 uppercase tracking-widest font-bold text-[10px]">Secure Homelab Access</p>
                 </div>
 

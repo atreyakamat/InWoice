@@ -69,6 +69,10 @@ const Dashboard = () => {
 
             <StatsCards stats={stats} />
             
+            <div className="mt-8">
+                <OCRScanner onScanComplete={handleOCRScan} />
+            </div>
+            
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
                 {/* Main Sales Chart */}
                 <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
@@ -134,6 +138,21 @@ const Dashboard = () => {
                                 <div key={index} className="flex items-center justify-between group">
                                     <div className="flex items-center">
                                         <div className="w-2 h-2 rounded-full mr-3" style={{ backgroundColor: entry.color }}></div>
+                                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{entry.name}</span>
+                                    </div>
+                                    <span className="text-sm font-black text-gray-800">{entry.value} Invoices</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default Dashboard;
+/div>
                                         <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{entry.name}</span>
                                     </div>
                                     <span className="text-sm font-black text-gray-800">{entry.value} Invoices</span>

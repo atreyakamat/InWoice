@@ -25,7 +25,7 @@ const Sidebar = () => {
     return (
         <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
             <div className="p-6">
-                <h1 className="text-2xl font-bold text-purple-600">InWoice</h1>
+                <h1 className="text-xl font-bold text-purple-600">Stix N Vibes</h1>
                 <p className="text-xs text-gray-500 mt-1">Invoice Manager</p>
             </div>
             <nav className="flex-1 px-4 space-y-2">
@@ -59,7 +59,7 @@ const Sidebar = () => {
             </div>
             
             <div className="p-4 border-t border-gray-200 text-sm text-center text-gray-500">
-                &copy; {new Date().getFullYear()} InWoice
+                &copy; {new Date().getFullYear()} Stix N Vibes
             </div>
         </div>
     );
