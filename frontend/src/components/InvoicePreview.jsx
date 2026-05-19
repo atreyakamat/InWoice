@@ -42,6 +42,9 @@ const InvoicePreview = ({ formData, items, subtotal, grandTotal, settings }) => 
                         <p><span className="font-bold text-gray-700">Method:</span> {formData.paymentMethod}</p>
                         <p><span className="font-bold text-gray-700">Status:</span> {formData.paymentStatus}</p>
                         <p className="text-purple-600 font-bold">{settings.upiId || 'No UPI ID'}</p>
+                        {formData.hsn_sac && (
+                            <p><span className="font-bold text-gray-700">HSN/SAC:</span> {formData.hsn_sac}</p>
+                        )}
                     </div>
                 </div>
             </div>
@@ -91,6 +94,36 @@ const InvoicePreview = ({ formData, items, subtotal, grandTotal, settings }) => 
                         <div className="flex justify-between text-xs text-gray-400 font-bold">
                             <span>Shipping</span>
                             <span>{settings.defaultCurrency || '$'}{formData.shipping}</span>
+                        </div>
+                    )}
+                    {Number(formData.tax) > 0 && (
+                        <div className="flex justify-between text-xs text-gray-400 font-bold">
+                            <span>Other Tax</span>
+                            <span>{settings.defaultCurrency || '$'}{Number(formData.tax).toFixed(2)}</span>
+                        </div>
+                    )}
+                    {Number(formData.cgst) > 0 && (
+                        <div className="flex justify-between text-xs text-gray-400 font-bold">
+                            <span>CGST</span>
+                            <span>{settings.defaultCurrency || '$'}{Number(formData.cgst).toFixed(2)}</span>
+                        </div>
+                    )}
+                    {Number(formData.sgst) > 0 && (
+                        <div className="flex justify-between text-xs text-gray-400 font-bold">
+                            <span>SGST</span>
+                            <span>{settings.defaultCurrency || '$'}{Number(formData.sgst).toFixed(2)}</span>
+                        </div>
+                    )}
+                    {Number(formData.igst) > 0 && (
+                        <div className="flex justify-between text-xs text-gray-400 font-bold">
+                            <span>IGST</span>
+                            <span>{settings.defaultCurrency || '$'}{Number(formData.igst).toFixed(2)}</span>
+                        </div>
+                    )}
+                    {Number(formData.tds) > 0 && (
+                        <div className="flex justify-between text-xs text-red-400 font-bold">
+                            <span>TDS</span>
+                            <span>-{settings.defaultCurrency || '$'}{Number(formData.tds).toFixed(2)}</span>
                         </div>
                     )}
                     <div className="flex justify-between text-lg font-black text-purple-800 pt-3 border-t border-purple-50">

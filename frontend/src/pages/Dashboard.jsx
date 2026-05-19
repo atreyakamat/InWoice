@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import StatsCards from '../components/StatsCards';
+import OCRScanner from '../components/OCRScanner';
 import { 
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
     PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar 
@@ -10,6 +11,10 @@ import { api, API_ENDPOINTS } from '../apiConfig';
 const Dashboard = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    const handleOCRScan = () => {
+        // Placeholder for future OCR scan handling.
+    };
 
     useEffect(() => {
         const fetchDashboardData = async () => {
@@ -138,21 +143,6 @@ const Dashboard = () => {
                                 <div key={index} className="flex items-center justify-between group">
                                     <div className="flex items-center">
                                         <div className="w-2 h-2 rounded-full mr-3" style={{ backgroundColor: entry.color }}></div>
-                                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{entry.name}</span>
-                                    </div>
-                                    <span className="text-sm font-black text-gray-800">{entry.value} Invoices</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export default Dashboard;
-/div>
                                         <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{entry.name}</span>
                                     </div>
                                     <span className="text-sm font-black text-gray-800">{entry.value} Invoices</span>

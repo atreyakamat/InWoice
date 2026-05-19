@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, RefreshCcw, Settings as SettingsIcon, Inbox, Send, Search, Trash2 } from 'lucide-react';
+import { Mail, RefreshCcw, Inbox, Send, Search, Trash2, Link2, Sparkles } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { api, API_ENDPOINTS } from '../apiConfig';
+import { useNavigate } from 'react-router-dom';
 
 const MailClient = () => {
     const [emails, setEmails] = useState([]);
@@ -9,6 +10,11 @@ const MailClient = () => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [selectedEmail, setSelectedEmail] = useState(null);
     const [searchQuery, setSearchQuery] = useState("");
+    const [replyText, setReplyText] = useState("");
+    const [isSending, setIsSending] = useState(false);
+    const [linkedCustomer, setLinkedCustomer] = useState("");
+    const [linkedInvoice, setLinkedInvoice] = useState("");
+    const navigate = useNavigate();
 
     useEffect(() => {
         fetchEmails();
@@ -17,7 +23,7 @@ const MailClient = () => {
     const fetchEmails = async () => {
         setIsLoading(true);
         try {
-            const data = await api.get(`${API_ENDPOINTS.API_BASE_URL || 'http://localhost:5000'}/api/mail/inbox`);
+            const data = await api.get(API_ENDPOINTS.MAIL.INBOX);
             setEmails(data || []);
         } catch (error) {
             console.error("Failed to load emails:", error);
@@ -30,7 +36,7 @@ const MailClient = () => {
     const handleSync = async () => {
         setIsSyncing(true);
         try {
-            const response = await api.post(`${API_ENDPOINTS.API_BASE_URL || 'http://localhost:5000'}/api/mail/sync`);
+            const response = await api.post(API_ENDPOINTS.MAIL.SYNC);
             toast.success(response.message || "Sync complete");
             fetchEmails();
         } catch (error) {
@@ -38,6 +44,111 @@ const MailClient = () => {
             toast.error(error.message || "Failed to sync emails. Ensure IMAP accounts are set in Settings.");
         } finally {
             setIsSyncing(false);
+        }
+    };
+
+    const selectEmail = async (email) => {
+        setSelectedEmail(email);
+        setReplyText('');
+        setLinkedCustomer(email.linked_customer || '');
+        setLinkedInvoice(email.linked_invoice || '');
+        if (!email.is_read) {
+            try {
+                await api.patch(API_ENDPOINTS.MAIL.UPDATE(email.id), {
+                    is_read: 1,
+                    linked_customer: email.linked_customer || null,
+                    linked_invoice: email.linked_invoice || null
+                });
+                setEmails(prev => prev.map(item => item.id === email.id ? { ...item, is_read: 1 } : item));
+            } catch (error) {
+                console.error(error);
+            }
+        }
+    };
+
+    const handleLinkSave = async () => {
+        if (!selectedEmail) return;
+        try {
+            const updated = await api.patch(API_ENDPOINTS.MAIL.UPDATE(selectedEmail.id), {
+                is_read: selectedEmail.is_read ? 1 : 0,
+                linked_customer: linkedCustomer || null,
+                linked_invoice: linkedInvoice || null
+            });
+            setSelectedEmail(updated);
+            setEmails(prev => prev.map(item => item.id === updated.id ? updated : item));
+            toast.success('Links saved.');
+        } catch (error) {
+            console.error(error);
+            toast.error('Failed to save links.');
+        }
+    };
+
+    const handleReply = async () => {
+        if (!selectedEmail || !replyText.trim()) return;
+        setIsSending(true);
+        try {
+            await api.post(API_ENDPOINTS.MAIL.REPLY, {
+                to: selectedEmail.sender,
+                subject: `Re: ${selectedEmail.subject || ''}`.trim(),
+                body: replyText,
+                inReplyTo: selectedEmail.message_id
+            });
+            toast.success('Reply sent.');
+            setReplyText('');
+        } catch (error) {
+            console.error(error);
+            toast.error(error.message || 'Failed to send reply.');
+        } finally {
+            setIsSending(false);
+        }
+    };
+
+    const handleExtractInvoice = async () => {
+        if (!selectedEmail) return;
+        try {
+            const data = await api.post(API_ENDPOINTS.AI_PARSE, {
+                text: `${selectedEmail.subject || ''}\n${selectedEmail.body || ''}`
+            });
+
+            const formData = {
+                date: new Date().toISOString().split('T')[0],
+                dueDate: '',
+                paymentStatus: 'Pending',
+                paymentMethod: 'UPI',
+                customerName: data.customerName || '',
+                customerEmail: data.customerEmail || '',
+                customerPhone: data.customerPhone || '',
+                shippingAddress: '',
+                instagramHandle: '',
+                paymentInfo: '',
+                notes: 'Imported from email',
+                discount: 0,
+                shipping: 0,
+                tax: 0,
+                cgst: 0,
+                sgst: 0,
+                igst: 0,
+                tds: 0,
+                hsn_sac: ''
+            };
+            const items = Array.isArray(data.items) && data.items.length > 0
+                ? data.items.map((item, index) => ({
+                    id: Date.now() + index,
+                    name: item.name || '',
+                    description: '',
+                    variant: '',
+                    quantity: item.quantity || 1,
+                    price: item.price || 0,
+                    total: (item.quantity || 1) * (item.price || 0)
+                }))
+                : [{ id: Date.now(), name: '', description: '', variant: '', quantity: 1, price: 0, total: 0 }];
+
+            localStorage.setItem('invoice_draft', JSON.stringify({ formData, items }));
+            toast.success('Invoice draft created from email.');
+            navigate('/create-invoice');
+        } catch (error) {
+            console.error(error);
+            toast.error('Failed to extract invoice from email.');
         }
     };
 
@@ -87,7 +198,7 @@ const MailClient = () => {
                             {filteredEmails.map(email => (
                                 <div 
                                     key={email.id} 
-                                    onClick={() => setSelectedEmail(email)}
+                                    onClick={() => selectEmail(email)}
                                     className={`p-4 cursor-pointer hover:bg-purple-50 transition-colors ${selectedEmail?.id === email.id ? 'bg-purple-100 border-l-4 border-purple-500' : 'bg-white'}`}
                                 >
                                     <div className="flex justify-between items-baseline mb-1">
@@ -126,10 +237,42 @@ const MailClient = () => {
                                     <button className="text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
                                 </div>
                             </div>
+                            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <input
+                                    type="text"
+                                    value={linkedCustomer}
+                                    onChange={(e) => setLinkedCustomer(e.target.value)}
+                                    placeholder="Link customer email"
+                                    className="p-2 text-xs border rounded-lg"
+                                />
+                                <input
+                                    type="text"
+                                    value={linkedInvoice}
+                                    onChange={(e) => setLinkedInvoice(e.target.value)}
+                                    placeholder="Link invoice ID"
+                                    className="p-2 text-xs border rounded-lg"
+                                />
+                                <button
+                                    onClick={handleLinkSave}
+                                    className="flex items-center justify-center space-x-2 px-3 py-2 bg-purple-600 text-white text-xs font-semibold rounded-lg"
+                                >
+                                    <Link2 size={14} />
+                                    <span>Save Links</span>
+                                </button>
+                            </div>
                         </div>
                         <div className="p-6 flex-1 overflow-y-auto">
                             <div className="prose max-w-none text-sm text-gray-700 whitespace-pre-wrap font-sans">
                                 {selectedEmail.body}
+                            </div>
+                            <div className="mt-6">
+                                <button
+                                    onClick={handleExtractInvoice}
+                                    className="flex items-center space-x-2 px-3 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-lg"
+                                >
+                                    <Sparkles size={14} />
+                                    <span>Extract Invoice from Email</span>
+                                </button>
                             </div>
                         </div>
                         {/* Reply Box (Placeholder) */}
@@ -139,10 +282,16 @@ const MailClient = () => {
                                     className="w-full focus:outline-none text-sm resize-none" 
                                     rows="3" 
                                     placeholder="Click here to reply..."
+                                    value={replyText}
+                                    onChange={(e) => setReplyText(e.target.value)}
                                 ></textarea>
                                 <div className="flex justify-end mt-2">
-                                    <button className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 transition-colors flex items-center">
-                                        <Send size={16} className="mr-2" /> Send Reply
+                                    <button
+                                        onClick={handleReply}
+                                        disabled={isSending}
+                                        className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 transition-colors flex items-center disabled:opacity-50"
+                                    >
+                                        <Send size={16} className="mr-2" /> {isSending ? 'Sending...' : 'Send Reply'}
                                     </button>
                                 </div>
                             </div>

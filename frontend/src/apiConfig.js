@@ -95,12 +95,36 @@ export const API_ENDPOINTS = {
   AI_PARSE: `${API_BASE_URL}/api/ai/parse`,
   AI_INSIGHTS: `${API_BASE_URL}/api/ai/insights`,
   AI_OCR_BANK: `${API_BASE_URL}/api/ai/ocr-bank-statement`,
+
+  // Mail
+  MAIL: {
+    INBOX: `${API_BASE_URL}/api/mail/inbox`,
+    SYNC: `${API_BASE_URL}/api/mail/sync`,
+    UPDATE: (id) => `${API_BASE_URL}/api/mail/inbox/${id}`,
+    REPLY: `${API_BASE_URL}/api/mail/reply`
+  },
   
   // Bank
   BANK_TRANSACTIONS: `${API_BASE_URL}/api/bank`,
+
+  // Tasks
+  TASKS: {
+    LIST: `${API_BASE_URL}/api/tasks`,
+    UPDATE: (id) => `${API_BASE_URL}/api/tasks/${id}`
+  },
   
   // Analytics
   ANALYTICS: `${API_BASE_URL}/api/analytics`,
+
+  // Accounting Reports
+  ACCOUNTING_REPORTS: {
+    TRIAL_BALANCE: `${API_BASE_URL}/api/accounting/reports/trial-balance?format=csv`,
+    BALANCE_SHEET: `${API_BASE_URL}/api/accounting/reports/balance-sheet?format=csv`,
+    PROFIT_LOSS: `${API_BASE_URL}/api/accounting/reports/profit-loss?format=csv`,
+    GSTR1: `${API_BASE_URL}/api/accounting/reports/gstr1?format=csv`,
+    GSTR2: `${API_BASE_URL}/api/accounting/reports/gstr2?format=csv`,
+    GSTR3B: `${API_BASE_URL}/api/accounting/reports/gstr3b?format=csv`
+  },
   
   // Upload
   UPLOAD: `${API_BASE_URL}/api/upload`

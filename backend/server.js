@@ -26,6 +26,10 @@ const webInvoiceRoutes = require('./routes/webInvoiceRoutes');
 const authRoutes = require('./routes/authRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const accountingRoutes = require('./routes/accountingRoutes');
+const taskRoutes = require('./routes/taskRoutes');
+const bankRoutes = require('./routes/bankRoutes');
+const mailRoutes = require('./routes/mailRoutes');
 
 const { authMiddleware } = require('./utils/authMiddleware');
 const { errorHandler, notFoundHandler } = require('./utils/errorHandler');

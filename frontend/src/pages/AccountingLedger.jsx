@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, DollarSign, FileText, TrendingUp, Download } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { api, API_ENDPOINTS } from '../apiConfig';
+import { api, API_ENDPOINTS, default as apiClient } from '../apiConfig';
 
 const AccountingLedger = () => {
     const [accounts, setAccounts] = useState([]);
@@ -28,9 +28,27 @@ const AccountingLedger = () => {
         }
     };
 
-    const generateGSTReport = () => {
-        toast.info("Generating GST Report (CSV)...");
-        // In a real app, this would hit a backend endpoint that generates a CSV of all invoices with CGST/SGST/IGST
+    const normalizedBalance = (account) => {
+        if (!account) return 0;
+        const raw = Number(account.balance) || 0;
+        if (account.type === 'Asset' || account.type === 'Expense') return raw;
+        return raw * -1;
+    };
+
+    const downloadReport = async (url, filename) => {
+        try {
+            const res = await apiClient.get(url, { responseType: 'blob' });
+            const blobUrl = window.URL.createObjectURL(new Blob([res.data]));
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (error) {
+            console.error(error);
+            toast.error('Failed to download report.');
+        }
     };
 
     return (
@@ -40,10 +58,30 @@ const AccountingLedger = () => {
                     <h1 className="text-2xl font-bold text-gray-800">Accounting Ledger</h1>
                     <p className="text-sm text-gray-500 mt-1">Double-entry bookkeeping and tax compliance</p>
                 </div>
-                <div className="flex space-x-2">
-                    <button onClick={generateGSTReport} className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">
+                <div className="flex flex-wrap gap-2">
+                    <button onClick={() => downloadReport(API_ENDPOINTS.ACCOUNTING_REPORTS.GSTR1, `gstr1-${Date.now()}.csv`)} className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">
                         <Download size={16} />
-                        <span>Export GST Report</span>
+                        <span>Export GSTR-1</span>
+                    </button>
+                    <button onClick={() => downloadReport(API_ENDPOINTS.ACCOUNTING_REPORTS.GSTR2, `gstr2-${Date.now()}.csv`)} className="flex items-center space-x-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium">
+                        <Download size={16} />
+                        <span>Export GSTR-2</span>
+                    </button>
+                    <button onClick={() => downloadReport(API_ENDPOINTS.ACCOUNTING_REPORTS.GSTR3B, `gstr3b-${Date.now()}.csv`)} className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium">
+                        <Download size={16} />
+                        <span>Export GSTR-3B</span>
+                    </button>
+                    <button onClick={() => downloadReport(API_ENDPOINTS.ACCOUNTING_REPORTS.TRIAL_BALANCE, `trial-balance-${Date.now()}.csv`)} className="flex items-center space-x-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-black transition-colors text-sm font-medium">
+                        <Download size={16} />
+                        <span>Trial Balance</span>
+                    </button>
+                    <button onClick={() => downloadReport(API_ENDPOINTS.ACCOUNTING_REPORTS.PROFIT_LOSS, `profit-loss-${Date.now()}.csv`)} className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
+                        <Download size={16} />
+                        <span>P&amp;L</span>
+                    </button>
+                    <button onClick={() => downloadReport(API_ENDPOINTS.ACCOUNTING_REPORTS.BALANCE_SHEET, `balance-sheet-${Date.now()}.csv`)} className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium">
+                        <Download size={16} />
+                        <span>Balance Sheet</span>
                     </button>
                 </div>
             </div>
@@ -68,7 +106,7 @@ const AccountingLedger = () => {
                                     <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><DollarSign size={20} /></div>
                                 </div>
                                 <p className="text-2xl font-bold text-gray-800">
-                                    ${accounts.filter(a => a.type === 'Asset').reduce((sum, a) => sum + a.balance, 0).toFixed(2)}
+                                    ${accounts.filter(a => a.type === 'Asset').reduce((sum, a) => sum + normalizedBalance(a), 0).toFixed(2)}
                                 </p>
                             </div>
                             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -77,7 +115,7 @@ const AccountingLedger = () => {
                                     <div className="p-2 bg-red-50 text-red-600 rounded-lg"><TrendingUp size={20} /></div>
                                 </div>
                                 <p className="text-2xl font-bold text-gray-800">
-                                    ${accounts.filter(a => a.type === 'Liability').reduce((sum, a) => sum + a.balance, 0).toFixed(2)}
+                                    ${accounts.filter(a => a.type === 'Liability').reduce((sum, a) => sum + normalizedBalance(a), 0).toFixed(2)}
                                 </p>
                             </div>
                             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -86,7 +124,7 @@ const AccountingLedger = () => {
                                     <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><BookOpen size={20} /></div>
                                 </div>
                                 <p className="text-2xl font-bold text-gray-800">
-                                    ${accounts.filter(a => a.type === 'Equity').reduce((sum, a) => sum + a.balance, 0).toFixed(2)}
+                                    ${accounts.filter(a => a.type === 'Equity').reduce((sum, a) => sum + normalizedBalance(a), 0).toFixed(2)}
                                 </p>
                             </div>
                         </div>
@@ -119,7 +157,7 @@ const AccountingLedger = () => {
                                                     {acc.type}
                                                 </span>
                                             </td>
-                                            <td className="p-4 text-right font-mono font-medium">${Number(acc.balance).toFixed(2)}</td>
+                                            <td className="p-4 text-right font-mono font-medium">${normalizedBalance(acc).toFixed(2)}</td>
                                         </tr>
                                     ))}
                                 </tbody>

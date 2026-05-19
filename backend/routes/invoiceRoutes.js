@@ -5,7 +5,9 @@ const {
     getInvoices, 
     updateInvoiceStatus, 
     updateInvoice, 
-    deleteInvoice 
+    deleteInvoice,
+    postInvoiceJournal,
+    postPaymentJournal
 } = require('../services/dbService');
 const { syncToGoogleSheets } = require('../services/googleSheetsService');
 const { generatePDF } = require('../services/pdfService');
@@ -24,6 +26,10 @@ router.post('/', validate(invoiceSchema), async (req, res) => {
 
         // Save to DB
         await addInvoice(invoiceData);
+        await postInvoiceJournal(invoiceData);
+        if (invoiceData.paymentStatus === 'Paid') {
+            await postPaymentJournal(invoiceData, { method: invoiceData.paymentMethod, date: invoiceData.date });
+        }
         
         // Sync to sheets without waiting
         syncToGoogleSheets(invoiceData).catch(err => console.error('Sync error:', err));
@@ -83,6 +89,9 @@ router.patch('/:id/status', async (req, res) => {
     try {
         const { status } = req.body;
         const updated = await updateInvoiceStatus(req.params.id, status);
+        if (status === 'Paid') {
+            await postPaymentJournal(updated, { method: updated.paymentMethod });
+        }
         res.json(updated);
     } catch (error) {
         res.status(404).json({ error: error.message });

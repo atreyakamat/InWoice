@@ -20,12 +20,17 @@ const invoiceSchema = z.object({
     shippingAddress: z.string().optional(),
     instagramHandle: z.string().optional(),
     notes: z.string().optional(),
-    discount: z.number().nonnegative().default(0),
-    shipping: z.number().nonnegative().default(0),
-    tax: z.number().nonnegative().default(0),
+    discount: z.coerce.number().nonnegative().default(0),
+    shipping: z.coerce.number().nonnegative().default(0),
+    tax: z.coerce.number().nonnegative().default(0),
+    cgst: z.coerce.number().nonnegative().default(0),
+    sgst: z.coerce.number().nonnegative().default(0),
+    igst: z.coerce.number().nonnegative().default(0),
+    tds: z.coerce.number().nonnegative().default(0),
+    hsn_sac: z.string().optional().or(z.literal('')),
     itemsJSON: z.string(), // We validate it's parseable JSON containing items
-    subtotal: z.number().nonnegative(),
-    grandTotal: z.number().nonnegative()
+    subtotal: z.coerce.number().nonnegative(),
+    grandTotal: z.coerce.number().nonnegative()
 });
 
 const productSchema = z.object({

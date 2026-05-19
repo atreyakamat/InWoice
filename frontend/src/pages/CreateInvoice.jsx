@@ -19,7 +19,12 @@ const CreateInvoice = () => {
         notes: 'Thank you for supporting Stix N Vibes!',
         discount: 0,
         shipping: 0,
-        tax: 0
+        tax: 0,
+        cgst: 0,
+        sgst: 0,
+        igst: 0,
+        tds: 0,
+        hsn_sac: ''
     });
 
     const [items, setItems] = useState([
@@ -55,7 +60,8 @@ const CreateInvoice = () => {
     }, [formData, items]);
 
     const subtotal = items.reduce((sum, item) => sum + item.total, 0);
-    const grandTotal = subtotal - Number(formData.discount) + Number(formData.shipping) + Number(formData.tax);
+    const gstTotal = Number(formData.cgst) + Number(formData.sgst) + Number(formData.igst);
+    const grandTotal = subtotal - Number(formData.discount) + Number(formData.shipping) + Number(formData.tax) + gstTotal - Number(formData.tds);
 
     return (
         <div className="flex h-full">

@@ -215,6 +215,73 @@ const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTo
             </div>
 
             {/* Totals & Notes */}
+            <div className="bg-white p-4 rounded-xl border border-gray-100 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-widest">HSN / SAC</label>
+                        <input
+                            type="text"
+                            name="hsn_sac"
+                            value={formData.hsn_sac}
+                            onChange={handleInputChange}
+                            placeholder="e.g., 9983"
+                            className="w-full p-2 bg-gray-50 rounded-lg outline-none border-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-widest">Other Tax</label>
+                        <input
+                            type="number"
+                            name="tax"
+                            value={formData.tax}
+                            onChange={handleInputChange}
+                            className="w-full p-2 bg-gray-50 rounded-lg outline-none border-none"
+                        />
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-widest">CGST</label>
+                        <input
+                            type="number"
+                            name="cgst"
+                            value={formData.cgst}
+                            onChange={handleInputChange}
+                            className="w-full p-2 bg-gray-50 rounded-lg outline-none border-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-widest">SGST</label>
+                        <input
+                            type="number"
+                            name="sgst"
+                            value={formData.sgst}
+                            onChange={handleInputChange}
+                            className="w-full p-2 bg-gray-50 rounded-lg outline-none border-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-widest">IGST</label>
+                        <input
+                            type="number"
+                            name="igst"
+                            value={formData.igst}
+                            onChange={handleInputChange}
+                            className="w-full p-2 bg-gray-50 rounded-lg outline-none border-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-widest">TDS</label>
+                        <input
+                            type="number"
+                            name="tds"
+                            value={formData.tds}
+                            onChange={handleInputChange}
+                            className="w-full p-2 bg-gray-50 rounded-lg outline-none border-none"
+                        />
+                    </div>
+                </div>
+            </div>
             <div className="bg-purple-50 p-4 rounded-xl space-y-2">
                 <div className="flex justify-between items-center">
                     <span className="text-[10px] font-bold text-purple-400 uppercase">Discount</span>

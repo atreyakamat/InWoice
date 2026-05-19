@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { getEmails, addEmail, getSettings } = require('../services/dbService');
+const { getEmails, addEmail, getSettings, updateEmail } = require('../services/dbService');
 const imaps = require('imap-simple');
 const simpleParser = require('mailparser').simpleParser;
+const nodemailer = require('nodemailer');
 
 router.get('/inbox', async (req, res) => {
     try {
@@ -71,7 +72,7 @@ router.post('/sync', async (req, res) => {
                         is_read: 0
                     };
 
-                    const added = addEmail(newEmail);
+                    const added = await addEmail(newEmail);
                     if (added) totalFetched++;
                 }
 
@@ -86,6 +87,57 @@ router.post('/sync', async (req, res) => {
     } catch (error) {
         console.error("IMAP Sync Error:", error);
         res.status(500).json({ error: "Failed to sync emails." });
+    }
+});
+
+router.patch('/inbox/:id', async (req, res) => {
+    try {
+        const updated = await updateEmail(req.params.id, req.body);
+        res.json(updated);
+    } catch (error) {
+        console.error('Email update error:', error);
+        res.status(500).json({ error: 'Failed to update email.' });
+    }
+});
+
+router.post('/reply', async (req, res) => {
+    try {
+        const { to, subject, body, inReplyTo, references } = req.body;
+        if (!to || !subject || !body) {
+            return res.status(400).json({ error: 'Missing required email fields.' });
+        }
+
+        const settings = await getSettings();
+        if (!settings.smtpHost || !settings.smtpUser || !settings.smtpPass) {
+            return res.status(500).json({ error: 'SMTP settings are not configured properly.' });
+        }
+
+        const transporter = nodemailer.createTransport({
+            host: settings.smtpHost,
+            port: parseInt(settings.smtpPort) || 587,
+            secure: parseInt(settings.smtpPort) === 465,
+            auth: {
+                user: settings.smtpUser,
+                pass: settings.smtpPass
+            }
+        });
+
+        const mailOptions = {
+            from: `"${settings.businessName}" <${settings.email || settings.smtpUser}>`,
+            to,
+            subject,
+            text: body,
+            headers: {
+                ...(inReplyTo ? { 'In-Reply-To': inReplyTo } : {}),
+                ...(references ? { References: references } : {})
+            }
+        };
+
+        await transporter.sendMail(mailOptions);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Mail reply error:', error);
+        res.status(500).json({ error: 'Failed to send reply.' });
     }
 });
 

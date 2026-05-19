@@ -9,8 +9,9 @@ const Invoices = () => {
     const fetchInvoices = async () => {
         try {
             const res = await api.get(API_ENDPOINTS.INVOICES);
+            const list = res?.invoices || res || [];
             // sort descending by date or ID
-            const sorted = [...res].reverse();
+            const sorted = [...list].reverse();
             setInvoices(sorted);
         } catch (err) {
             console.error(err);
