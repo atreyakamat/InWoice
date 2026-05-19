@@ -142,6 +142,11 @@ app.use('/api/upload', authMiddleware, apiLimiter, uploadRoutes);
 app.use('/api/customers', authMiddleware, apiLimiter, require('./routes/customerRoutes'));
 app.use('/api/export', authMiddleware, apiLimiter, require('./routes/exportRoutes'));
 
+app.use('/api/accounting', authMiddleware, apiLimiter, accountingRoutes);
+app.use('/api/tasks', authMiddleware, apiLimiter, taskRoutes);
+app.use('/api/bank', authMiddleware, apiLimiter, bankRoutes);
+app.use('/api/mail', authMiddleware, apiLimiter, mailRoutes);
+
 // 404 handler
 app.use(notFoundHandler);
 

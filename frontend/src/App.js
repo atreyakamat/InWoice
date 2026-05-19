@@ -13,6 +13,9 @@ import Settings from './pages/Settings';
 import Products from './pages/Products';
 import WebInvoiceView from './pages/WebInvoiceView';
 import Login from './pages/Login';
+import BankReconciliation from './pages/BankReconciliation';
+import MailClient from './pages/MailClient';
+import AccountingLedger from './pages/AccountingLedger';
 import { isAuthenticated } from './apiConfig';
 
 const ProtectedRoute = ({ children }) => {
@@ -63,6 +66,9 @@ function App() {
           <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
           <Route path="/customers/:email" element={<ProtectedRoute><CustomerDetail /></ProtectedRoute>} />
           <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+          <Route path="/reconciliation" element={<ProtectedRoute><BankReconciliation /></ProtectedRoute>} />
+          <Route path="/mail" element={<ProtectedRoute><MailClient /></ProtectedRoute>} />
+          <Route path="/accounting" element={<ProtectedRoute><AccountingLedger /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         </Routes>
       </Layout>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { api, API_ENDPOINTS } from '../apiConfig';
+import { api, API_ENDPOINTS, API_BASE_URL } from '../apiConfig';
+import { Plus, Trash2 } from 'lucide-react';
 
 const Settings = () => {
-    // ... rest of settings state unchanged
     const [settings, setSettings] = useState({
         businessName: '',
         email: '',
@@ -16,7 +16,8 @@ const Settings = () => {
         smtpHost: '',
         smtpPort: '587',
         smtpUser: '',
-        smtpPass: ''
+        smtpPass: '',
+        imapAccounts: []
     });
 
     useEffect(() => {
@@ -24,7 +25,7 @@ const Settings = () => {
             try {
                 const res = await api.get(API_ENDPOINTS.DATA_SETTINGS);
                 if (res) {
-                    setSettings(prev => ({ ...prev, ...res }));
+                    setSettings(prev => ({ ...prev, ...res, imapAccounts: res.imapAccounts || [] }));
                 }
             } catch (err) {
                 console.error(err);
@@ -36,6 +37,24 @@ const Settings = () => {
     const handleChange = (e) => {
         const { name, value } = e.target;
         setSettings(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleImapChange = (index, field, value) => {
+        const updatedAccounts = [...settings.imapAccounts];
+        updatedAccounts[index][field] = value;
+        setSettings(prev => ({ ...prev, imapAccounts: updatedAccounts }));
+    };
+
+    const addImapAccount = () => {
+        setSettings(prev => ({
+            ...prev,
+            imapAccounts: [...prev.imapAccounts, { host: 'imap.gmail.com', port: '993', user: '', password: '', tls: true }]
+        }));
+    };
+
+    const removeImapAccount = (index) => {
+        const updatedAccounts = settings.imapAccounts.filter((_, i) => i !== index);
+        setSettings(prev => ({ ...prev, imapAccounts: updatedAccounts }));
     };
 
     const handleFileChange = async (e) => {
@@ -132,12 +151,12 @@ const Settings = () => {
                 </div>
             </div>
 
-            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
-                <h2 className="text-xl font-bold mb-6 text-gray-800 border-b pb-2">Email SMTP Configuration</h2>
-                <p className="text-sm text-gray-500 mb-6">Configure SMTP settings to send invoices directly to customers via email.</p>
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 mb-8">
+                <h2 className="text-xl font-bold mb-6 text-gray-800 border-b pb-2">Outgoing Mail (SMTP)</h2>
+                <p className="text-sm text-gray-500 mb-6">Configure SMTP settings to send invoices directly to customers.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">SMTP Host (e.g., smtp.gmail.com)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">SMTP Host</label>
                         <input type="text" name="smtpHost" value={settings.smtpHost} onChange={handleChange} className="w-full p-2 border rounded-lg outline-none focus:border-purple-500" />
                     </div>
                     <div>
@@ -145,14 +164,61 @@ const Settings = () => {
                         <input type="text" name="smtpPort" value={settings.smtpPort} onChange={handleChange} className="w-full p-2 border rounded-lg outline-none focus:border-purple-500" />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">SMTP Username (Email)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Username (Email)</label>
                         <input type="text" name="smtpUser" value={settings.smtpUser} onChange={handleChange} className="w-full p-2 border rounded-lg outline-none focus:border-purple-500" />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">SMTP Password (App Password)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Password (App Password)</label>
                         <input type="password" name="smtpPass" value={settings.smtpPass} onChange={handleChange} className="w-full p-2 border rounded-lg outline-none focus:border-purple-500" />
                     </div>
                 </div>
+            </div>
+            
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
+                <div className="flex justify-between items-center border-b pb-2 mb-6">
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-800">Incoming Mail (IMAP)</h2>
+                        <p className="text-sm text-gray-500">Configure IMAP to view multiple email accounts in the Inbox.</p>
+                    </div>
+                    <button onClick={addImapAccount} className="flex items-center space-x-1 text-sm bg-purple-100 text-purple-700 px-3 py-1.5 rounded-lg hover:bg-purple-200 transition">
+                        <Plus size={16} /> <span>Add Account</span>
+                    </button>
+                </div>
+                
+                {settings.imapAccounts.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-4">No IMAP accounts configured.</p>
+                ) : (
+                    <div className="space-y-6">
+                        {settings.imapAccounts.map((account, index) => (
+                            <div key={index} className="p-4 border border-gray-200 rounded-lg bg-gray-50 relative group">
+                                <button 
+                                    onClick={() => removeImapAccount(index)}
+                                    className="absolute top-4 right-4 text-gray-400 hover:text-red-500"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pr-8">
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">IMAP Host (e.g. imap.gmail.com)</label>
+                                        <input type="text" value={account.host} onChange={(e) => handleImapChange(index, 'host', e.target.value)} className="w-full p-2 text-sm border rounded outline-none focus:border-purple-500" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Port</label>
+                                        <input type="text" value={account.port} onChange={(e) => handleImapChange(index, 'port', e.target.value)} className="w-full p-2 text-sm border rounded outline-none focus:border-purple-500" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Email Address</label>
+                                        <input type="email" value={account.user} onChange={(e) => handleImapChange(index, 'user', e.target.value)} className="w-full p-2 text-sm border rounded outline-none focus:border-purple-500" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">App Password</label>
+                                        <input type="password" value={account.password} onChange={(e) => handleImapChange(index, 'password', e.target.value)} className="w-full p-2 text-sm border rounded outline-none focus:border-purple-500" />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );

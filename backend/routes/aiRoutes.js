@@ -2,6 +2,14 @@ const express = require('express');
 const router = express.Router();
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const axios = require('axios');
+const multer = require('multer');
+const pdfplumber = require('pdfplumber'); // Need to install pdf-parse or similar, or just pass text if extraction is done elsewhere
+const fs = require('fs');
+
+// Note: To parse PDFs directly in Node, we will use a lightweight package like 'pdf-parse' if needed, 
+// but since the user requested AI layer via Groq/NIM, we will send text to them.
+// We'll set up multer for file upload.
+const upload = multer({ dest: 'uploads/' });
 
 const SYSTEM_PROMPT = `
 You are an AI that extracts invoice data from spoken text.
@@ -31,62 +39,154 @@ const cleanJSON = (text) => {
     return JSON.parse(cleaned);
 };
 
+// Generic function to call Groq or NIM
+const callExternalAI = async (messages, maxTokens = 512) => {
+    // 1. Try Groq
+    if (process.env.GROQ_API_KEY) {
+        const groqUrl = 'https://api.groq.com/openai/v1/chat/completions';
+        const model = process.env.GROQ_MODEL || 'llama3-70b-8192'; // Fast reasoning model
+        console.log(`Routing AI request to Groq (${model})...`);
+        const response = await axios.post(groqUrl, {
+            model: model,
+            messages: messages,
+            max_tokens: maxTokens,
+            temperature: 0.1,
+            response_format: { type: "json_object" }
+        }, {
+            headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` }
+        });
+        return response.data.choices[0].message.content;
+    }
+    
+    // 2. Try NVIDIA NIM
+    if (process.env.NVIDIA_NIM_API_KEY) {
+        const nimUrl = process.env.NVIDIA_NIM_URL || 'https://integrate.api.nvidia.com/v1/chat/completions';
+        const model = process.env.NVIDIA_NIM_MODEL || 'meta/llama3-70b-instruct';
+        console.log(`Routing AI request to NVIDIA NIM (${model})...`);
+        const response = await axios.post(nimUrl, {
+            model: model,
+            messages: messages,
+            max_tokens: maxTokens,
+            temperature: 0.1
+        }, {
+            headers: { 'Authorization': `Bearer ${process.env.NVIDIA_NIM_API_KEY}` }
+        });
+        return response.data.choices[0].message.content;
+    }
+    
+    return null; // Signals to fallback to Gemini/Ollama
+};
+
 router.post('/parse', async (req, res) => {
     const { text } = req.body;
+    const messages = [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: `Text to analyze: "${text}"` }
+    ];
+
     try {
-        // 1. Try Ollama AI if enabled
+        // Try Groq or NIM first
+        const externalResponse = await callExternalAI(messages);
+        if (externalResponse) {
+            return res.json(cleanJSON(externalResponse));
+        }
+
+        // Fallbacks
         if (process.env.USE_OLLAMA_AI === 'true') {
             const url = process.env.OLLAMA_URL || 'http://localhost:11434/api/chat';
             const model = process.env.OLLAMA_MODEL || 'qwen3.5:0.8b';
-            
             console.log(`Routing AI request to Ollama (${model}) at ${url}...`);
             try {
                 const response = await axios.post(url, {
                     model: model,
-                    messages: [
-                        { role: 'system', content: SYSTEM_PROMPT },
-                        { role: 'user', content: `Text to analyze: "${text}"` }
-                    ],
+                    messages: messages,
                     stream: false,
-                    format: 'json' // Ollama feature for JSON output
+                    format: 'json'
                 });
-                
-                const content = response.data.message.content;
-                return res.json(cleanJSON(content));
+                return res.json(cleanJSON(response.data.message.content));
             } catch (error) {
                 console.error("Ollama AI Error:", error.message);
-                // Continue to next AI if Ollama fails
             }
         }
 
-        // 2. Try Local Python AI Microservice if enabled
-        if (process.env.USE_LOCAL_PYTHON_AI === 'true') {
-            const localUrl = process.env.LOCAL_AI_URL || 'http://127.0.0.1:8000/parse';
-            console.log(`Routing AI request to local Python model at ${localUrl}...`);
-            try {
-                const response = await axios.post(localUrl, { text });
-                return res.json(response.data);
-            } catch (error) {
-                console.error("Local Python AI Error:", error.message);
-            }
-        }
-
-        // 3. Fallback to Gemini Cloud AI
         if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here') {
             console.log("Routing AI request to Gemini Cloud...");
             const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
             const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
             const result = await model.generateContent(`${SYSTEM_PROMPT}\n\nText to analyze: "${text}"`);
-            const content = result.response.text();
-            return res.json(cleanJSON(content));
+            return res.json(cleanJSON(result.response.text()));
         }
 
-        return res.status(500).json({ error: 'No AI service available. Configure Ollama, Local Python, or Gemini API.' });
+        return res.status(500).json({ error: 'No AI service available. Configure Groq, NVIDIA NIM, Ollama, or Gemini API.' });
 
     } catch (error) {
         console.error("AI Unified Parsing Error:", error);
         res.status(500).json({ error: 'Failed to parse text with AI', details: error.message });
+    }
+});
+
+const pdfParse = require('pdf-parse');
+
+router.post('/ocr-bank-statement', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded.' });
+        }
+
+        let text = "";
+        
+        // Very basic extraction using pdf-parse for local handling before sending to AI
+        if (req.file.mimetype === 'application/pdf') {
+            const dataBuffer = fs.readFileSync(req.file.path);
+            const pdfData = await pdfParse(dataBuffer);
+            text = pdfData.text;
+        } else {
+             // For images, we would ideally use a Vision model directly or a local OCR like tesseract, 
+             // but assuming PDF for now or delegating text extraction to frontend if needed.
+             // Let's inform the user if it's not a PDF.
+             return res.status(400).json({ error: 'Only PDF files are currently supported for backend extraction.' });
+        }
+
+        // Clean up the uploaded file
+        fs.unlinkSync(req.file.path);
+
+        if (!text.trim()) {
+             return res.status(400).json({ error: 'Could not extract text from the PDF.' });
+        }
+
+        const OCR_PROMPT = `
+You are a financial AI. Extract all bank transactions from the provided bank statement text.
+Return ONLY a valid JSON object representing a list of transactions. No markdown, no explanations.
+Schema to strictly follow:
+{
+    "transactions": [
+        { "date": "YYYY-MM-DD", "description": "string", "amount": number, "type": "Debit" or "Credit" }
+    ]
+}`;
+
+        const messages = [
+            { role: 'system', content: OCR_PROMPT },
+            { role: 'user', content: `Bank statement text:\n${text.substring(0, 3000)}` }
+        ];
+
+        const externalResponse = await callExternalAI(messages, 1024);
+        if (externalResponse) {
+            return res.json({ text_preview: text.substring(0, 500), data: cleanJSON(externalResponse) });
+        }
+        
+        // Fallback to Gemini
+        if (process.env.GEMINI_API_KEY) {
+            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+            const result = await model.generateContent(`${OCR_PROMPT}\n\nText: ${text.substring(0, 3000)}`);
+            return res.json({ text_preview: text.substring(0, 500), data: cleanJSON(result.response.text()) });
+        }
+        
+        return res.status(500).json({ error: 'No AI service available for OCR. Configure Groq or NVIDIA NIM.' });
+
+    } catch (error) {
+        console.error("Bank Statement AI Error:", error);
+        res.status(500).json({ error: 'Failed to process bank statement with AI', details: error.message });
     }
 });
 
@@ -107,30 +207,21 @@ Data Summary:
 Provide the output as a simple list of strings in JSON format: { "insights": ["insight 1", "insight 2", ...] }
 `;
 
+    const messages = [{ role: 'user', content: INSIGHTS_PROMPT }];
+
     try {
-        // Use Gemini if available
+        const externalResponse = await callExternalAI(messages);
+        if (externalResponse) {
+            return res.json(cleanJSON(externalResponse));
+        }
+
         if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here') {
             const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Use 1.5-flash for speed/reliability
-
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
             const result = await model.generateContent(INSIGHTS_PROMPT);
-            const content = result.response.text();
-            return res.json(cleanJSON(content));
+            return res.json(cleanJSON(result.response.text()));
         }
 
-        // Use Ollama fallback
-        if (process.env.USE_OLLAMA_AI === 'true') {
-            const url = process.env.OLLAMA_URL || 'http://localhost:11434/api/chat';
-            const response = await axios.post(url, {
-                model: process.env.OLLAMA_MODEL || 'qwen3.5:0.8b',
-                messages: [{ role: 'user', content: INSIGHTS_PROMPT }],
-                stream: false,
-                format: 'json'
-            });
-            return res.json(cleanJSON(response.data.message.content));
-        }
-
-        // Mock response if no AI is configured
         return res.json({
             insights: [
                 "Your revenue is steady, but consider a small discount for top customers to increase frequency.",
