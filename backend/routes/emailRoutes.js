@@ -63,4 +63,41 @@ router.post('/remind/:id', async (req, res) => {
     }
 });
 
+router.post('/test-smtp', async (req, res) => {
+    try {
+        const settings = await getSettings();
+        if (!settings.smtpHost || !settings.smtpUser || !settings.smtpPass) {
+            return res.status(400).json({ error: 'SMTP settings are not fully configured.' });
+        }
+
+        const transporter = nodemailer.createTransport({
+            host: settings.smtpHost,
+            port: parseInt(settings.smtpPort) || 587,
+            secure: parseInt(settings.smtpPort) === 465,
+            auth: {
+                user: settings.smtpUser,
+                pass: settings.smtpPass
+            }
+        });
+
+        // Verify connection configuration
+        await transporter.verify();
+
+        // Optionally send a test email
+        const mailOptions = {
+            from: `"${settings.businessName || 'InWoice'}" <${settings.email || settings.smtpUser}>`,
+            to: settings.email || settings.smtpUser,
+            subject: `Test Email Connection - InWoice`,
+            text: `Hello,\n\nIf you are reading this, your SMTP email configuration in InWoice is working perfectly!\n\nBest regards,\nInWoice System`
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        res.json({ message: 'SMTP connection successful! A test email was sent.' });
+    } catch (error) {
+        console.error('SMTP Test Error:', error);
+        res.status(500).json({ error: `SMTP Connection Failed: ${error.message}` });
+    }
+});
+
 module.exports = router;

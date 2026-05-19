@@ -66,6 +66,7 @@ export const API_ENDPOINTS = {
   // Email
   EMAIL_SEND: `${API_BASE_URL}/api/email/send`,
   EMAIL_REMINDER: `${API_BASE_URL}/api/email/reminder`,
+  EMAIL_TEST: `${API_BASE_URL}/api/email/test-smtp`,
   
   // Data/Settings
   DATA_CUSTOMERS: `${API_BASE_URL}/api/data/customers`,

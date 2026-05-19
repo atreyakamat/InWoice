@@ -3,6 +3,7 @@ import { api, API_ENDPOINTS, API_BASE_URL } from '../apiConfig';
 import { Plus, Trash2 } from 'lucide-react';
 
 const Settings = () => {
+    const [isTestingSmtp, setIsTestingSmtp] = useState(false);
     const [settings, setSettings] = useState({
         businessName: '',
         email: '',
@@ -90,6 +91,19 @@ const Settings = () => {
         }
     };
 
+    const handleTestSmtp = async () => {
+        setIsTestingSmtp(true);
+        try {
+            const res = await api.post(API_ENDPOINTS.EMAIL_TEST, settings);
+            alert(res.message || 'SMTP Connection Successful!');
+        } catch (error) {
+            console.error(error);
+            alert(error.message || 'SMTP Test Failed.');
+        } finally {
+            setIsTestingSmtp(false);
+        }
+    };
+
     return (
         <div className="p-8 max-w-4xl mx-auto">
             <div className="flex justify-between items-center mb-8">
@@ -155,11 +169,26 @@ const Settings = () => {
             </div>
 
             <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 mb-8">
-                <h2 className="text-xl font-bold mb-6 text-gray-800 border-b pb-2">Outgoing Mail (SMTP)</h2>
-                <p className="text-sm text-gray-500 mb-6">Configure SMTP settings to send invoices directly to customers.</p>
-                <p className={`text-xs font-semibold mb-6 ${smtpConfigured ? 'text-green-600' : 'text-red-500'}`}>
-                    Status: {smtpConfigured ? 'Configured' : 'Not Configured'}
-                </p>
+                <div className="flex justify-between items-center border-b pb-2 mb-6">
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-800">Outgoing Mail (SMTP)</h2>
+                        <p className="text-sm text-gray-500">Configure SMTP settings to send invoices directly to customers.</p>
+                        <p className={`text-xs font-semibold mt-2 ${smtpConfigured ? 'text-green-600' : 'text-red-500'}`}>
+                            Status: {smtpConfigured ? 'Configured' : 'Not Configured'}
+                        </p>
+                    </div>
+                    <button 
+                        onClick={handleTestSmtp} 
+                        disabled={!smtpConfigured || isTestingSmtp}
+                        className={`flex items-center space-x-1 text-sm px-3 py-1.5 rounded-lg transition ${
+                            (!smtpConfigured || isTestingSmtp) 
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                        }`}
+                    >
+                        <span>{isTestingSmtp ? 'Testing...' : 'Test Connection'}</span>
+                    </button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">SMTP Host</label>
