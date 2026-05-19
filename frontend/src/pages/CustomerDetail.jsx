@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Mail, Phone, Instagram, Calendar, DollarSign, Package, TrendingUp, Clock } from 'lucide-react';
-import API_ENDPOINTS, { api } from '../apiConfig';
+import { api, API_ENDPOINTS } from '../apiConfig';
 
 const CustomerDetail = () => {
     const { email } = useParams();
@@ -11,23 +11,23 @@ const CustomerDetail = () => {
     const [invoices, setInvoices] = useState([]);
     const [error, setError] = useState('');
 
-    useEffect(() => {
-        fetchCustomerDetails();
-    }, [email]);
-
-    const fetchCustomerDetails = async () => {
+    const fetchCustomerDetails = useCallback(async () => {
         try {
             setLoading(true);
             const response = await api.get(API_ENDPOINTS.CUSTOMERS.DETAIL(email));
-            setCustomer(response.data.customer);
-            setInvoices(response.data.invoices);
+            setCustomer(response.customer);
+            setInvoices(response.invoices);
         } catch (err) {
             console.error('Error fetching customer:', err);
             setError('Failed to load customer details');
         } finally {
             setLoading(false);
         }
-    };
+    }, [email]);
+
+    useEffect(() => {
+        fetchCustomerDetails();
+    }, [fetchCustomerDetails]);
 
     const getSegmentColor = (segment) => {
         const colors = {

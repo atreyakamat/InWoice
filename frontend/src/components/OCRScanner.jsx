@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Camera, Upload, Loader2, FileText, CheckCircle } from 'lucide-react';
+import { Camera, Loader2, FileText, CheckCircle } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 
 const OCRScanner = ({ onScanComplete }) => {

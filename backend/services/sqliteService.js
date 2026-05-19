@@ -1,6 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const { applyEnvSettings } = require('../utils/envSettings');
 
 const DB_PATH = path.join(__dirname, '../data.db');
 const db = new Database(DB_PATH);
@@ -197,7 +198,7 @@ const getSettings = () => {
             settings[row.key] = row.value;
         }
     });
-    return settings;
+    return applyEnvSettings(settings);
 };
 
 const updateSettings = (newSettings) => {
@@ -507,6 +508,51 @@ const postPaymentJournal = (invoice, paymentMeta = {}) => {
     });
 };
 
+const postBankJournal = (txn) => {
+    if (!txn || !txn.id) return null;
+    if (Number(txn.is_personal) === 1) return null;
+    if (findJournalEntryBySource('bank', 'bank', txn.id)) return null;
+
+    const bankAccount = ensureAccount('Bank', 'Asset', 'acct_bank');
+    const salesAccount = ensureAccount('Sales', 'Revenue', 'acct_sales');
+    const otherIncomeAccount = ensureAccount('Other Income', 'Revenue', 'acct_other_income');
+    const opexAccount = ensureAccount('Operating Expenses', 'Expense', 'acct_opex');
+    const bankChargesAccount = ensureAccount('Bank Charges', 'Expense', 'acct_bank_fees');
+
+    const amount = Number(txn.amount) || 0;
+    if (amount <= 0) return null;
+
+    const category = (txn.category || '').toLowerCase();
+    const isCredit = (txn.type || '').toLowerCase() === 'credit';
+
+    const creditAccount = category.includes('income') || category.includes('sales')
+        ? salesAccount
+        : otherIncomeAccount;
+    const debitAccount = category.includes('bank') || category.includes('fee')
+        ? bankChargesAccount
+        : opexAccount;
+
+    const lines = isCredit
+        ? [
+            { account_id: bankAccount.id, debit: amount, credit: 0 },
+            { account_id: creditAccount.id, debit: 0, credit: amount }
+        ]
+        : [
+            { account_id: debitAccount.id, debit: amount, credit: 0 },
+            { account_id: bankAccount.id, debit: 0, credit: amount }
+        ];
+
+    return addJournalEntry({
+        date: txn.date,
+        description: txn.description || 'Bank transaction',
+        reference_id: txn.id,
+        entry_type: 'bank',
+        source_type: 'bank',
+        source_id: txn.id,
+        lines
+    });
+};
+
 // --- Bank Transactions ---
 const getBankTransactions = () => db.prepare('SELECT * FROM bank_transactions ORDER BY date DESC').all();
 const addBankTransaction = (txn) => {
@@ -645,49 +691,4 @@ module.exports = {
     getTasks, addTask, updateTask,
     getEmails, addEmail, updateEmail,
     backupDatabase
-};
-
-const postBankJournal = (txn) => {
-    if (!txn || !txn.id) return null;
-    if (Number(txn.is_personal) === 1) return null;
-    if (findJournalEntryBySource('bank', 'bank', txn.id)) return null;
-
-    const bankAccount = ensureAccount('Bank', 'Asset', 'acct_bank');
-    const salesAccount = ensureAccount('Sales', 'Revenue', 'acct_sales');
-    const otherIncomeAccount = ensureAccount('Other Income', 'Revenue', 'acct_other_income');
-    const opexAccount = ensureAccount('Operating Expenses', 'Expense', 'acct_opex');
-    const bankChargesAccount = ensureAccount('Bank Charges', 'Expense', 'acct_bank_fees');
-
-    const amount = Number(txn.amount) || 0;
-    if (amount <= 0) return null;
-
-    const category = (txn.category || '').toLowerCase();
-    const isCredit = (txn.type || '').toLowerCase() === 'credit';
-
-    const creditAccount = category.includes('income') || category.includes('sales')
-        ? salesAccount
-        : otherIncomeAccount;
-    const debitAccount = category.includes('bank') || category.includes('fee')
-        ? bankChargesAccount
-        : opexAccount;
-
-    const lines = isCredit
-        ? [
-            { account_id: bankAccount.id, debit: amount, credit: 0 },
-            { account_id: creditAccount.id, debit: 0, credit: amount }
-        ]
-        : [
-            { account_id: debitAccount.id, debit: amount, credit: 0 },
-            { account_id: bankAccount.id, debit: 0, credit: amount }
-        ];
-
-    return addJournalEntry({
-        date: txn.date,
-        description: txn.description || 'Bank transaction',
-        reference_id: txn.id,
-        entry_type: 'bank',
-        source_type: 'bank',
-        source_id: txn.id,
-        lines
-    });
 };

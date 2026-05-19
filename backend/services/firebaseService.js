@@ -1,6 +1,7 @@
 const admin = require('firebase-admin');
 const path = require('path');
 const fs = require('fs');
+const { applyEnvSettings } = require('../utils/envSettings');
 
 const credsPath = path.join(__dirname, '../firebase-credentials.json');
 
@@ -77,7 +78,7 @@ const getSettings = async () => {
             settings[doc.id] = doc.data().value;
         }
     });
-    return settings;
+    return applyEnvSettings(settings);
 };
 
 const updateSettings = async (newSettings) => {

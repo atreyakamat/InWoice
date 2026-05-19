@@ -1,5 +1,5 @@
 import React from 'react';
-import { DollarSign, FileText, ShoppingCart, Clock, TrendingUp, Users } from 'lucide-react';
+import { DollarSign, FileText, Clock, TrendingUp, Users } from 'lucide-react';
 
 const StatsCards = ({ stats }) => {
     const cards = [

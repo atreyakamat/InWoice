@@ -20,6 +20,9 @@ const Settings = () => {
         imapAccounts: []
     });
 
+    const smtpConfigured = !!(settings.smtpHost && settings.smtpUser && settings.smtpPass);
+    const imapConfigured = Array.isArray(settings.imapAccounts) && settings.imapAccounts.length > 0;
+
     useEffect(() => {
         const fetchSettings = async () => {
             try {
@@ -154,6 +157,9 @@ const Settings = () => {
             <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 mb-8">
                 <h2 className="text-xl font-bold mb-6 text-gray-800 border-b pb-2">Outgoing Mail (SMTP)</h2>
                 <p className="text-sm text-gray-500 mb-6">Configure SMTP settings to send invoices directly to customers.</p>
+                <p className={`text-xs font-semibold mb-6 ${smtpConfigured ? 'text-green-600' : 'text-red-500'}`}>
+                    Status: {smtpConfigured ? 'Configured' : 'Not Configured'}
+                </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">SMTP Host</label>
@@ -179,6 +185,9 @@ const Settings = () => {
                     <div>
                         <h2 className="text-xl font-bold text-gray-800">Incoming Mail (IMAP)</h2>
                         <p className="text-sm text-gray-500">Configure IMAP to view multiple email accounts in the Inbox.</p>
+                        <p className={`text-xs font-semibold mt-2 ${imapConfigured ? 'text-green-600' : 'text-red-500'}`}>
+                            Status: {imapConfigured ? 'Configured' : 'Not Configured'}
+                        </p>
                     </div>
                     <button onClick={addImapAccount} className="flex items-center space-x-1 text-sm bg-purple-100 text-purple-700 px-3 py-1.5 rounded-lg hover:bg-purple-200 transition">
                         <Plus size={16} /> <span>Add Account</span>

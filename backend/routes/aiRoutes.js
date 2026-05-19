@@ -3,7 +3,6 @@ const router = express.Router();
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const axios = require('axios');
 const multer = require('multer');
-const pdfplumber = require('pdfplumber'); // Need to install pdf-parse or similar, or just pass text if extraction is done elsewhere
 const fs = require('fs');
 
 // Note: To parse PDFs directly in Node, we will use a lightweight package like 'pdf-parse' if needed, 

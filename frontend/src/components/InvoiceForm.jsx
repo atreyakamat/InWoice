@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Mic, Bot, Loader2, Send, Download, Share2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, Trash2, Mic, Loader2, Send, Download, Share2 } from 'lucide-react';
 import { api, API_ENDPOINTS, default as apiClient } from '../apiConfig';
 
 const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTotal, settings }) => {
@@ -25,6 +25,43 @@ const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTo
         fetchData();
     }, []);
 
+    const handleSubmit = useCallback(async (action) => {
+        const payload = { ...formData, itemsJSON: JSON.stringify(items), subtotal, grandTotal };
+        
+        // --- Offline Check ---
+        if (!navigator.onLine) {
+            const outbox = JSON.parse(localStorage.getItem('offline_outbox') || '[]');
+            outbox.push({ ...payload, action, id: Date.now() });
+            localStorage.setItem('offline_outbox', JSON.stringify(outbox));
+            alert('Offline! Invoice saved to outbox and will sync when online.');
+            return;
+        }
+
+        try {
+            const res = await api.post(API_ENDPOINTS.INVOICES, payload);
+            const invoice = res.invoice;
+
+            if (action === 'pdf') {
+                const pdfRes = await apiClient.post(API_ENDPOINTS.INVOICE_PDF(invoice.invoiceID), {}, { responseType: 'blob' });
+                const url = window.URL.createObjectURL(new Blob([pdfRes.data]));
+                const link = document.createElement('a'); link.href = url; link.setAttribute('download', `${invoice.invoiceID}.pdf`); document.body.appendChild(link); link.click();
+            } else if (action === 'email') {
+                await api.post(API_ENDPOINTS.EMAIL_SEND + '/' + invoice.invoiceID);
+                alert('Sent to ' + formData.customerEmail);
+            } else if (action === 'whatsapp') {
+                const invoiceUrl = `${window.location.origin}/view-invoice/${invoice.invoiceID}`;
+                const text = `Hi ${formData.customerName}! Here is your invoice from Stix N Vibes: ${invoiceUrl}`;
+                window.open(`https://wa.me/${formData.customerPhone.replace(/\D/g,'')}?text=${encodeURIComponent(text)}`, '_blank');
+            } else {
+                alert('Saved!');
+            }
+            localStorage.removeItem('invoice_draft');
+        } catch (error) {
+            console.error('Submit error:', error);
+            alert('Error processing request: ' + (error.message || 'Unknown error'));
+        }
+    }, [formData, items, subtotal, grandTotal]);
+
     // --- Keyboard Shortcuts ---
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -39,7 +76,7 @@ const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTo
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [formData, items]);
+    }, [handleSubmit]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -84,42 +121,7 @@ const InvoiceForm = ({ formData, setFormData, items, setItems, subtotal, grandTo
 // ... rest of component logic unchanged
 
 
-    const handleSubmit = async (action) => {
-        const payload = { ...formData, itemsJSON: JSON.stringify(items), subtotal, grandTotal };
-        
-        // --- Offline Check ---
-        if (!navigator.onLine) {
-            const outbox = JSON.parse(localStorage.getItem('offline_outbox') || '[]');
-            outbox.push({ ...payload, action, id: Date.now() });
-            localStorage.setItem('offline_outbox', JSON.stringify(outbox));
-            alert('Offline! Invoice saved to outbox and will sync when online.');
-            return;
-        }
-
-        try {
-            const res = await api.post(API_ENDPOINTS.INVOICES, payload);
-            const invoice = res.invoice;
-
-            if (action === 'pdf') {
-                const pdfRes = await apiClient.post(API_ENDPOINTS.INVOICE_PDF(invoice.invoiceID), {}, { responseType: 'blob' });
-                const url = window.URL.createObjectURL(new Blob([pdfRes.data]));
-                const link = document.createElement('a'); link.href = url; link.setAttribute('download', `${invoice.invoiceID}.pdf`); document.body.appendChild(link); link.click();
-            } else if (action === 'email') {
-                await api.post(API_ENDPOINTS.EMAIL_SEND + '/' + invoice.invoiceID);
-                alert('Sent to ' + formData.customerEmail);
-            } else if (action === 'whatsapp') {
-                const invoiceUrl = `${window.location.origin}/view-invoice/${invoice.invoiceID}`;
-                const text = `Hi ${formData.customerName}! Here is your invoice from Stix N Vibes: ${invoiceUrl}`;
-                window.open(`https://wa.me/${formData.customerPhone.replace(/\D/g,'')}?text=${encodeURIComponent(text)}`, '_blank');
-            } else {
-                alert('Saved!');
-            }
-            localStorage.removeItem('invoice_draft');
-        } catch (error) {
-            console.error('Submit error:', error);
-            alert('Error processing request: ' + (error.message || 'Unknown error'));
-        }
-    };
+// ... rest of component logic unchanged
 
     // Background Sync
     useEffect(() => {

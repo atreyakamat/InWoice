@@ -58,3 +58,12 @@ A unified inbox to handle client communication directly within InWoice.
 
 ---
 **Next Action:** Review this plan. If you agree, we will begin Phase 1 (Database & Core Accounting/Tax logic).
+
+## 7. Implementation Status (2026-05-19)
+- [x] Phase 1: CoA seeding, journal posting, GST/TDS fields, P&L/Balance Sheet/Trial Balance, GSTR exports
+- [x] Phase 2: Bank statement OCR, reconciliation UI, invoice linking, vendor/GST capture
+- [x] Phase 3: IMAP sync, SMTP replies, inbox linking, invoice extraction from email
+- [x] Phase 4: Task board UI + API
+
+### Environment Defaults
+- SMTP and IMAP can be provided via env (`SMTP_*`, `IMAP_*` or `IMAP_ACCOUNTS_JSON`) and are used as defaults when UI settings are empty.

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Upload, FileText, CheckCircle, RefreshCcw, AlertTriangle, Save } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { api, API_ENDPOINTS } from '../apiConfig';
@@ -21,13 +21,6 @@ const BankReconciliation = () => {
         fetchInvoices();
     }, []);
 
-    useEffect(() => {
-        if (transactions.length === 0 || invoices.length === 0) return;
-        setTransactions(prev => prev.map(txn => {
-            if (txn.linked_invoice_id) return txn;
-            return { ...txn, linked_invoice_id: suggestInvoice(txn) };
-        }));
-    }, [invoices]);
 
     const fetchHistory = async () => {
         try {
@@ -60,12 +53,23 @@ const BankReconciliation = () => {
         return '';
     };
 
-    const suggestInvoice = (txn) => {
+    const suggestInvoice = useCallback((txn) => {
         if (!txn || (txn.type || '').toLowerCase() !== 'credit') return '';
         const amount = Number(txn.amount) || 0;
         const match = invoices.find(inv => Math.abs((Number(inv.grandTotal) || 0) - amount) < 0.01 && inv.paymentStatus !== 'Paid');
         return match ? match.invoiceID : '';
-    };
+    }, [invoices]);
+
+    useEffect(() => {
+        if (invoices.length === 0) return;
+        setTransactions(prev => {
+            if (prev.length === 0) return prev;
+            return prev.map(txn => {
+                if (txn.linked_invoice_id) return txn;
+                return { ...txn, linked_invoice_id: suggestInvoice(txn) };
+            });
+        });
+    }, [invoices, suggestInvoice]);
 
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files.length > 0) {

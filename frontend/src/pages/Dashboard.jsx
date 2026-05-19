@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import StatsCards from '../components/StatsCards';
 import OCRScanner from '../components/OCRScanner';
 import { 
-    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
     PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar 
 } from 'recharts';
-import { Users, TrendingUp, ShoppingBag, CreditCard } from 'lucide-react';
+import { Users, TrendingUp, ShoppingBag } from 'lucide-react';
 import { api, API_ENDPOINTS } from '../apiConfig';
 
 const Dashboard = () => {
