@@ -272,6 +272,47 @@ Context: ${context || 'General business growth and product awareness.'}
     }
 });
 
+router.post('/extract-order', async (req, res) => {
+    const { text } = req.body;
+    const ORDER_PROMPT = `
+You are an AI order manager. Extract order details from the following WhatsApp chat text.
+Return ONLY a valid JSON object.
+Schema:
+{
+    "customerName": "string",
+    "items": [
+        { "name": "string", "quantity": number, "price": number }
+    ],
+    "total": number
+}
+Text: ${text}
+`;
+    const messages = [{ role: 'system', content: ORDER_PROMPT }];
+
+    try {
+        const externalResponse = await callExternalAI(messages, 512);
+        if (externalResponse) {
+            return res.json(cleanJSON(externalResponse));
+        }
+
+        if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here') {
+            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+            const result = await model.generateContent(ORDER_PROMPT);
+            return res.json(cleanJSON(result.response.text()));
+        }
+
+        return res.json({
+            customerName: "Unknown",
+            items: [],
+            total: 0
+        });
+    } catch (error) {
+        console.error("Order Extraction Error:", error);
+        res.status(500).json({ error: 'Failed to extract order' });
+    }
+});
+
 router.post('/chat', async (req, res) => {
     const { message, history } = req.body;
     

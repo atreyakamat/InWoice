@@ -31,6 +31,7 @@ const taskRoutes = require('./routes/taskRoutes');
 const bankRoutes = require('./routes/bankRoutes');
 const mailRoutes = require('./routes/mailRoutes');
 const marketingRoutes = require('./routes/marketingRoutes');
+const orderRoutes = require('./routes/orderRoutes');
 
 const { authMiddleware } = require('./utils/authMiddleware');
 const { errorHandler, notFoundHandler } = require('./utils/errorHandler');
@@ -173,6 +174,7 @@ app.use('/api/tasks', authMiddleware, apiLimiter, taskRoutes);
 app.use('/api/bank', authMiddleware, apiLimiter, bankRoutes);
 app.use('/api/mail', authMiddleware, apiLimiter, mailRoutes);
 app.use('/api/marketing', authMiddleware, apiLimiter, marketingRoutes);
+app.use('/api/orders', authMiddleware, apiLimiter, orderRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

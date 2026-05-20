@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api, API_ENDPOINTS } from '../apiConfig';
 import InvoiceForm from '../components/InvoiceForm';
 import InvoicePreview from '../components/InvoicePreview';
 
 const CreateInvoice = () => {
-    // ... rest of state unchanged
+    const location = useLocation();
+    
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
         dueDate: '',
@@ -44,14 +46,36 @@ const CreateInvoice = () => {
         };
         fetchSettings();
 
-        // Load draft from local storage
-        const savedDraft = localStorage.getItem('invoice_draft');
-        if (savedDraft) {
-            const parsed = JSON.parse(savedDraft);
-            setFormData(parsed.formData);
-            setItems(parsed.items);
+        // Check for prefill data from location state (e.g. from WhatsApp Order)
+        if (location.state && location.state.prefill) {
+            const { prefill } = location.state;
+            setFormData(prev => ({
+                ...prev,
+                customerName: prefill.customerName || prev.customerName,
+                customerPhone: prefill.customerPhone || prev.customerPhone,
+                notes: prefill.notes || prev.notes
+            }));
+            if (prefill.items && prefill.items.length > 0) {
+                setItems(prefill.items.map((item, index) => ({
+                    id: index + 1,
+                    name: item.name,
+                    description: '',
+                    variant: '',
+                    quantity: item.quantity,
+                    price: item.price,
+                    total: item.quantity * item.price
+                })));
+            }
+        } else {
+            // Load draft from local storage ONLY if no prefill data
+            const savedDraft = localStorage.getItem('invoice_draft');
+            if (savedDraft) {
+                const parsed = JSON.parse(savedDraft);
+                setFormData(parsed.formData);
+                setItems(parsed.items);
+            }
         }
-    }, []);
+    }, [location.state]);
 
     // Auto-save draft
     useEffect(() => {

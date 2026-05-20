@@ -22,7 +22,16 @@ This version elevates InWoice from a business tool to an AI-powered Business Ope
   - **Automated Publishing:** Backend cron jobs that "publish" posts at their exact scheduled time.
   - **Interactive Feed:** Manage and delete your queue of upcoming campaigns.
 
-### 📧 3. Email Reliability & Verification
+### 📱 3. WhatsApp Order Management & AI Extraction
+- **Status:** ✅ Implemented
+- **Feature:** A unified dashboard to receive and process orders from WhatsApp.
+- **Capabilities:**
+  - **WhatsApp Webhook:** Ready-to-use endpoint for real-time order ingestion.
+  - **AI Order Extraction:** Instantly extract customer names, items, quantities, and prices from raw chat text.
+  - **One-Click Conversion:** Seamlessly convert a WhatsApp chat into a structured Invoice.
+  - **Order Lifecycle:** Track status from "New" to "Completed".
+
+### 📧 4. Email Reliability & Verification
 - **Status:** ✅ Implemented
 - **Feature:** Enhanced SMTP/IMAP reliability and a new testing suite.
 - **Capabilities:**

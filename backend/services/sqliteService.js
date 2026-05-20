@@ -133,6 +133,18 @@ db.exec(`
     status TEXT DEFAULT 'Scheduled',
     createdAt TEXT
   );
+
+  CREATE TABLE IF NOT EXISTS orders (
+    id TEXT PRIMARY KEY,
+    source TEXT DEFAULT 'WhatsApp',
+    customer_name TEXT,
+    customer_contact TEXT,
+    order_text TEXT,
+    items_json TEXT,
+    total_amount REAL,
+    status TEXT DEFAULT 'Pending',
+    createdAt TEXT
+  );
 `);
 
 // Safe ALTER TABLEs for existing databases
@@ -678,6 +690,35 @@ const deleteMarketingPost = (id) => {
     db.prepare('DELETE FROM marketing_posts WHERE id = ?').run(id);
 };
 
+// --- Orders ---
+const getOrders = () => db.prepare('SELECT * FROM orders ORDER BY createdAt DESC').all();
+const addOrder = (order) => {
+    const id = order.id || Date.now().toString();
+    const createdAt = order.createdAt || new Date().toISOString();
+    db.prepare(`
+        INSERT INTO orders (id, source, customer_name, customer_contact, order_text, items_json, total_amount, status, createdAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+        id,
+        order.source || 'WhatsApp',
+        order.customer_name || null,
+        order.customer_contact || null,
+        order.order_text || null,
+        typeof order.items_json === 'string' ? order.items_json : JSON.stringify(order.items_json || []),
+        order.total_amount || 0,
+        order.status || 'Pending',
+        createdAt
+    );
+    return { ...order, id, createdAt };
+};
+const updateOrderStatus = (id, status) => {
+    db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, id);
+    return db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+};
+const deleteOrder = (id) => {
+    db.prepare('DELETE FROM orders WHERE id = ?').run(id);
+};
+
 const backupDatabase = async () => {
     const BACKUP_DIR = path.join(__dirname, '../backups');
     try {
@@ -718,5 +759,6 @@ module.exports = {
     getTasks, addTask, updateTask,
     getEmails, addEmail, updateEmail,
     getMarketingPosts, addMarketingPost, updateMarketingPost, deleteMarketingPost,
+    getOrders, addOrder, updateOrderStatus, deleteOrder,
     backupDatabase
 };

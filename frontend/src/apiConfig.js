@@ -121,6 +121,14 @@ export const API_ENDPOINTS = {
     LIST: `${API_BASE_URL}/api/marketing`,
     UPDATE: (id) => `${API_BASE_URL}/api/marketing/${id}`
   },
+
+  // Orders
+  ORDERS: {
+    LIST: `${API_BASE_URL}/api/orders`,
+    UPDATE_STATUS: (id) => `${API_BASE_URL}/api/orders/${id}/status`,
+    DELETE: (id) => `${API_BASE_URL}/api/orders/${id}`,
+    EXTRACT_AI: `${API_BASE_URL}/api/ai/extract-order`
+  },
   
   // Analytics
   ANALYTICS: `${API_BASE_URL}/api/analytics`,

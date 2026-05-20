@@ -19,6 +19,7 @@ import AccountingLedger from './pages/AccountingLedger';
 import Tasks from './pages/Tasks';
 import Marketing from './pages/Marketing';
 import AIManager from './pages/AIManager';
+import WhatsAppOrders from './pages/WhatsAppOrders';
 import { isAuthenticated } from './apiConfig';
 
 const ProtectedRoute = ({ children }) => {
@@ -64,6 +65,7 @@ function App() {
           
           <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/ai-manager" element={<ProtectedRoute><AIManager /></ProtectedRoute>} />
+          <Route path="/orders" element={<ProtectedRoute><WhatsAppOrders /></ProtectedRoute>} />
           <Route path="/create-invoice" element={<ProtectedRoute><CreateInvoice /></ProtectedRoute>} />
           <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
           <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
