@@ -96,6 +96,8 @@ export const API_ENDPOINTS = {
   AI_PARSE: `${API_BASE_URL}/api/ai/parse`,
   AI_INSIGHTS: `${API_BASE_URL}/api/ai/insights`,
   AI_OCR_BANK: `${API_BASE_URL}/api/ai/ocr-bank-statement`,
+  AI_MARKETING_PLAN: `${API_BASE_URL}/api/ai/marketing-plan`,
+  AI_CHAT: `${API_BASE_URL}/api/ai/chat`,
 
   // Mail
   MAIL: {

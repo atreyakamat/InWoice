@@ -18,6 +18,7 @@ import MailClient from './pages/MailClient';
 import AccountingLedger from './pages/AccountingLedger';
 import Tasks from './pages/Tasks';
 import Marketing from './pages/Marketing';
+import AIManager from './pages/AIManager';
 import { isAuthenticated } from './apiConfig';
 
 const ProtectedRoute = ({ children }) => {
@@ -62,6 +63,7 @@ function App() {
           <Route path="/view-invoice/:id" element={<WebInvoiceView />} />
           
           <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/ai-manager" element={<ProtectedRoute><AIManager /></ProtectedRoute>} />
           <Route path="/create-invoice" element={<ProtectedRoute><CreateInvoice /></ProtectedRoute>} />
           <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
           <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />

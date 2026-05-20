@@ -234,4 +234,95 @@ Provide the output as a simple list of strings in JSON format: { "insights": ["i
     }
 });
 
+router.post('/marketing-plan', async (req, res) => {
+    const { context } = req.body;
+    const MARKETING_PROMPT = `
+You are a creative marketing AI. Create a marketing post based on the context below. 
+Determine the best platforms to post on based on the context. Available platforms: ["WhatsApp", "Instagram", "LinkedIn", "YouTube", "Twitter", "Facebook"].
+Return ONLY a valid JSON object.
+Schema:
+{
+    "content": "The actual post content...",
+    "platforms": ["Platform1", "Platform2"]
+}
+Context: ${context || 'General business growth and product awareness.'}
+`;
+    const messages = [{ role: 'system', content: MARKETING_PROMPT }];
+
+    try {
+        const externalResponse = await callExternalAI(messages, 512);
+        if (externalResponse) {
+            return res.json(cleanJSON(externalResponse));
+        }
+
+        if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here') {
+            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+            const result = await model.generateContent(MARKETING_PROMPT);
+            return res.json(cleanJSON(result.response.text()));
+        }
+
+        return res.json({
+            content: "Hey everyone! We're excited to announce some amazing new updates to our products. Check it out and let us know what you think! 🚀 #StixNVibes #Growth",
+            platforms: ["Instagram", "WhatsApp"]
+        });
+    } catch (error) {
+        console.error("Marketing Plan Error:", error);
+        res.status(500).json({ error: 'Failed to generate marketing plan' });
+    }
+});
+
+router.post('/chat', async (req, res) => {
+    const { message, history } = req.body;
+    
+    // Build context for the AI Manager
+    const chatContext = history.map(msg => ({
+        role: msg.sender === 'user' ? 'user' : 'assistant',
+        content: msg.text
+    }));
+    
+    const SYSTEM_PROMPT = `You are the AI Business Manager for this InWoice project. You help the user manage their marketing, accounting, and general business tasks. Keep your answers concise, professional, and directly helpful.`;
+    
+    const messages = [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...chatContext,
+        { role: 'user', content: message }
+    ];
+
+    try {
+        const externalResponse = await callExternalAI(messages, 1024);
+        if (externalResponse) {
+            // Because callExternalAI forces response_format: json_object for Groq, it might return a JSON string.
+            // Let's just return the raw response, or if it wrapped it, extract it.
+            let text = externalResponse;
+            try { 
+                const parsed = JSON.parse(externalResponse);
+                if (parsed.response) text = parsed.response;
+                if (parsed.message) text = parsed.message;
+            } catch(e) {}
+            return res.json({ response: text });
+        }
+
+        if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here') {
+            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+            // Format history for Gemini
+            const geminiHistory = chatContext.map(msg => ({
+                role: msg.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: msg.content }]
+            }));
+            const chat = model.startChat({
+                history: [{ role: "user", parts: [{ text: SYSTEM_PROMPT }] }, { role: "model", parts: [{ text: "Understood." }] }, ...geminiHistory]
+            });
+            const result = await chat.sendMessage(message);
+            return res.json({ response: result.response.text() });
+        }
+
+        return res.json({ response: "I am your AI Manager. I see you sent a message, but my cloud AI connection isn't configured right now. Ask me about your business!" });
+    } catch (error) {
+        console.error("AI Chat Error:", error);
+        res.status(500).json({ error: 'Failed to process chat' });
+    }
+});
+
 module.exports = router;

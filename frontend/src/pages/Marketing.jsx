@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { api, API_ENDPOINTS } from '../apiConfig';
-import { Calendar, CheckCircle2, Clock, Trash2, Send } from 'lucide-react';
+import { Calendar, CheckCircle2, Clock, Trash2, Send, Sparkles } from 'lucide-react';
 
 const Marketing = () => {
     const [posts, setPosts] = useState([]);
     const [isCreating, setIsCreating] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [promptContext, setPromptContext] = useState('');
     const [newPost, setNewPost] = useState({
         content: '',
         platforms: ['LinkedIn'],
@@ -44,6 +46,25 @@ const Marketing = () => {
         }
     };
 
+    const handleGenerateAI = async () => {
+        setIsGenerating(true);
+        try {
+            const result = await api.post(API_ENDPOINTS.AI_MARKETING_PLAN, { context: promptContext });
+            if (result && result.content) {
+                setNewPost(prev => ({
+                    ...prev,
+                    content: result.content,
+                    platforms: result.platforms && result.platforms.length > 0 ? result.platforms : prev.platforms
+                }));
+            }
+        } catch (error) {
+            console.error('Failed to generate marketing plan', error);
+            alert('Failed to generate with AI.');
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
     const handleDeletePost = async (id) => {
         if (!window.confirm('Delete this scheduled post?')) return;
         try {
@@ -63,7 +84,7 @@ const Marketing = () => {
         });
     };
 
-    const availablePlatforms = ['LinkedIn', 'Twitter', 'Facebook', 'Instagram'];
+    const availablePlatforms = ['WhatsApp', 'Instagram', 'LinkedIn', 'YouTube', 'Twitter', 'Facebook'];
 
     return (
         <div className="p-8 max-w-6xl mx-auto">
@@ -83,7 +104,26 @@ const Marketing = () => {
 
             {isCreating && (
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8 animate-fade-in">
-                    <h2 className="text-lg font-bold text-gray-800 mb-4">Create New Post</h2>
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-lg font-bold text-gray-800">Create New Post</h2>
+                        <div className="flex space-x-2">
+                            <input 
+                                type="text" 
+                                placeholder="E.g., new summer collection launch"
+                                className="px-3 py-1.5 border border-gray-200 rounded text-sm outline-none focus:border-blue-500"
+                                value={promptContext}
+                                onChange={(e) => setPromptContext(e.target.value)}
+                            />
+                            <button 
+                                onClick={handleGenerateAI}
+                                disabled={isGenerating}
+                                className="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 flex items-center space-x-1 text-sm font-medium transition disabled:opacity-50"
+                            >
+                                <Sparkles size={14} />
+                                <span>{isGenerating ? 'Thinking...' : 'AI Plan'}</span>
+                            </button>
+                        </div>
+                    </div>
                     <textarea
                         value={newPost.content}
                         onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}

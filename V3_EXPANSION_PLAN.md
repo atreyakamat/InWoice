@@ -64,6 +64,7 @@ A unified inbox to handle client communication directly within InWoice.
 - [x] Phase 2: Bank statement OCR, reconciliation UI, invoice linking, vendor/GST capture
 - [x] Phase 3: IMAP sync, SMTP replies, inbox linking, invoice extraction from email
 - [x] Phase 4: Task board UI + API
+- [x] Phase 5: AI Business Manager & Marketing Scheduler (AI-generated posts for WhatsApp, Instagram, LinkedIn, YouTube)
 
 ### Environment Defaults
 - SMTP and IMAP can be provided via env (`SMTP_*`, `IMAP_*` or `IMAP_ACCOUNTS_JSON`) and are used as defaults when UI settings are empty.
