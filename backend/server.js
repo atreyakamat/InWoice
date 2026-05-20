@@ -1,4 +1,6 @@
 require('dotenv').config();
+const path = require('path');
+const fs = require('fs');
 
 // Validate environment variables before starting
 const { validateEnv } = require('./utils/envValidator');
@@ -174,7 +176,7 @@ app.use('/api/tasks', authMiddleware, apiLimiter, taskRoutes);
 app.use('/api/bank', authMiddleware, apiLimiter, bankRoutes);
 app.use('/api/mail', authMiddleware, apiLimiter, mailRoutes);
 app.use('/api/marketing', authMiddleware, apiLimiter, marketingRoutes);
-app.use('/api/orders', authMiddleware, apiLimiter, orderRoutes);
+app.use('/api/orders', apiLimiter, orderRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

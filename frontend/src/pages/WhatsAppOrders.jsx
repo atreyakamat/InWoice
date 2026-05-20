@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api, API_ENDPOINTS } from '../apiConfig';
-import { MessageSquare, ShoppingCart, RefreshCcw, CheckCircle2, Trash2, FileText, Sparkles, User, Phone } from 'lucide-react';
+import { MessageSquare, RefreshCcw, CheckCircle2, Trash2, FileText, Sparkles, User, Phone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const WhatsAppOrders = () => {
