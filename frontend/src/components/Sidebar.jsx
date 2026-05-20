@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, FileText, Users, PieChart, Settings, PlusCircle, Package, LogOut, Landmark, Mail, BookOpen, CheckSquare } from 'lucide-react';
+import { Home, FileText, Users, PieChart, Settings, PlusCircle, Package, LogOut, Landmark, Mail, BookOpen, CheckSquare, Megaphone } from 'lucide-react';
 import { removeToken } from '../apiConfig';
 
 const Sidebar = () => {
@@ -10,6 +10,7 @@ const Sidebar = () => {
     const links = [
         { name: 'Dashboard', path: '/', icon: Home },
         { name: 'Inbox', path: '/mail', icon: Mail },
+        { name: 'Marketing', path: '/marketing', icon: Megaphone },
         { name: 'Create Invoice', path: '/create-invoice', icon: PlusCircle },
         { name: 'Invoices', path: '/invoices', icon: FileText },
         { name: 'Accounting', path: '/accounting', icon: BookOpen },

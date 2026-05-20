@@ -124,6 +124,15 @@ db.exec(`
     linked_customer TEXT,
     linked_invoice TEXT
   );
+
+  CREATE TABLE IF NOT EXISTS marketing_posts (
+    id TEXT PRIMARY KEY,
+    content TEXT NOT NULL,
+    platforms TEXT,
+    scheduledAt TEXT,
+    status TEXT DEFAULT 'Scheduled',
+    createdAt TEXT
+  );
 `);
 
 // Safe ALTER TABLEs for existing databases
@@ -651,6 +660,24 @@ const updateEmail = (id, updates) => {
     return db.prepare('SELECT * FROM emails WHERE id = ?').get(id);
 };
 
+// --- Marketing Posts ---
+const getMarketingPosts = () => db.prepare('SELECT * FROM marketing_posts ORDER BY scheduledAt DESC').all();
+const addMarketingPost = (post) => {
+    const id = post.id || Date.now().toString();
+    const createdAt = new Date().toISOString();
+    db.prepare('INSERT INTO marketing_posts (id, content, platforms, scheduledAt, status, createdAt) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(id, post.content, typeof post.platforms === 'string' ? post.platforms : JSON.stringify(post.platforms), post.scheduledAt, post.status || 'Scheduled', createdAt);
+    return { ...post, id, createdAt, status: post.status || 'Scheduled' };
+};
+const updateMarketingPost = (id, updates) => {
+    db.prepare('UPDATE marketing_posts SET content = ?, platforms = ?, scheduledAt = ?, status = ? WHERE id = ?')
+      .run(updates.content, typeof updates.platforms === 'string' ? updates.platforms : JSON.stringify(updates.platforms), updates.scheduledAt, updates.status, id);
+    return db.prepare('SELECT * FROM marketing_posts WHERE id = ?').get(id);
+};
+const deleteMarketingPost = (id) => {
+    db.prepare('DELETE FROM marketing_posts WHERE id = ?').run(id);
+};
+
 const backupDatabase = async () => {
     const BACKUP_DIR = path.join(__dirname, '../backups');
     try {
@@ -690,5 +717,6 @@ module.exports = {
     getBankTransactions, addBankTransaction, updateBankTransaction,
     getTasks, addTask, updateTask,
     getEmails, addEmail, updateEmail,
+    getMarketingPosts, addMarketingPost, updateMarketingPost, deleteMarketingPost,
     backupDatabase
 };

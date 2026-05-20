@@ -30,14 +30,36 @@ const accountingRoutes = require('./routes/accountingRoutes');
 const taskRoutes = require('./routes/taskRoutes');
 const bankRoutes = require('./routes/bankRoutes');
 const mailRoutes = require('./routes/mailRoutes');
+const marketingRoutes = require('./routes/marketingRoutes');
 
 const { authMiddleware } = require('./utils/authMiddleware');
 const { errorHandler, notFoundHandler } = require('./utils/errorHandler');
 const logger = require('./utils/logger');
-const { backupDatabase } = require('./services/dbService');
-const path = require('path');
+const { getMarketingPosts, updateMarketingPost } = require('./services/dbService');
 
 const app = express();
+
+// Set up Cron Job for Marketing Posts
+cron.schedule('* * * * *', async () => {
+    try {
+        const posts = await getMarketingPosts();
+        const now = new Date();
+        for (const post of posts) {
+            if (post.status === 'Scheduled' && post.scheduledAt) {
+                const scheduledTime = new Date(post.scheduledAt);
+                if (scheduledTime <= now) {
+                    // Simulate posting to social media platforms
+                    console.log(`[Marketing Cron] Publishing post ${post.id} to ${post.platforms}...`);
+                    await updateMarketingPost(post.id, { ...post, status: 'Published' });
+                }
+            }
+        }
+    } catch (err) {
+        console.error('[Marketing Cron] Error checking scheduled posts:', err);
+    }
+});
+
+// Middleware
 const PORT = process.env.PORT || 5000;
 
 // Serve uploaded files
@@ -150,6 +172,7 @@ app.use('/api/accounting', authMiddleware, apiLimiter, accountingRoutes);
 app.use('/api/tasks', authMiddleware, apiLimiter, taskRoutes);
 app.use('/api/bank', authMiddleware, apiLimiter, bankRoutes);
 app.use('/api/mail', authMiddleware, apiLimiter, mailRoutes);
+app.use('/api/marketing', authMiddleware, apiLimiter, marketingRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

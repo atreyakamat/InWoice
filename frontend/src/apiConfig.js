@@ -113,6 +113,12 @@ export const API_ENDPOINTS = {
     LIST: `${API_BASE_URL}/api/tasks`,
     UPDATE: (id) => `${API_BASE_URL}/api/tasks/${id}`
   },
+
+  // Marketing
+  MARKETING: {
+    LIST: `${API_BASE_URL}/api/marketing`,
+    UPDATE: (id) => `${API_BASE_URL}/api/marketing/${id}`
+  },
   
   // Analytics
   ANALYTICS: `${API_BASE_URL}/api/analytics`,

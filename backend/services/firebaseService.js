@@ -511,34 +511,21 @@ const backupDatabase = async () => {
     console.log('Firebase handles its own backups and redundancy automatically.');
 };
 
+const getMarketingPosts = async () => [];
+const addMarketingPost = async (post) => post;
+const updateMarketingPost = async (id, updates) => null;
+const deleteMarketingPost = async (id) => null;
+
 module.exports = {
-    getSettings,
-    updateSettings,
-    getProducts,
-    addProduct,
-    deleteProduct,
+    getSettings, updateSettings,
+    getProducts, addProduct, deleteProduct,
     getCustomers,
-    getInvoices,
-    addInvoice,
-    updateInvoiceStatus,
-    updateInvoice,
-    deleteInvoice,
-    getAccounts,
-    addAccount,
-    getAccountByName,
-    getJournalEntries,
-    addJournalEntry,
-    postInvoiceJournal,
-    postPaymentJournal,
-    postBankJournal,
-    getBankTransactions,
-    addBankTransaction,
-    updateBankTransaction,
-    getTasks,
-    addTask,
-    updateTask,
-    getEmails,
-    addEmail,
-    updateEmail,
+    getInvoices, addInvoice, updateInvoiceStatus, updateInvoice, deleteInvoice,
+    getAccounts, addAccount, getAccountByName,
+    getJournalEntries, addJournalEntry, postInvoiceJournal, postPaymentJournal, postBankJournal,
+    getBankTransactions, addBankTransaction, updateBankTransaction,
+    getTasks, addTask, updateTask,
+    getEmails, addEmail, updateEmail,
+    getMarketingPosts, addMarketingPost, updateMarketingPost, deleteMarketingPost,
     backupDatabase
 };

@@ -17,6 +17,7 @@ import BankReconciliation from './pages/BankReconciliation';
 import MailClient from './pages/MailClient';
 import AccountingLedger from './pages/AccountingLedger';
 import Tasks from './pages/Tasks';
+import Marketing from './pages/Marketing';
 import { isAuthenticated } from './apiConfig';
 
 const ProtectedRoute = ({ children }) => {
@@ -69,6 +70,7 @@ function App() {
           <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
           <Route path="/reconciliation" element={<ProtectedRoute><BankReconciliation /></ProtectedRoute>} />
           <Route path="/mail" element={<ProtectedRoute><MailClient /></ProtectedRoute>} />
+          <Route path="/marketing" element={<ProtectedRoute><Marketing /></ProtectedRoute>} />
           <Route path="/accounting" element={<ProtectedRoute><AccountingLedger /></ProtectedRoute>} />
           <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
