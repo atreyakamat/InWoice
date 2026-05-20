@@ -14,24 +14,24 @@ console.log('✓ Test 1: Environment Configuration');
 const envPath = path.join(__dirname, '.env');
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf-8');
-  if (envContent.includes('REACT_APP_API_URL')) {
+  if (envContent.includes('VITE_API_URL') || envContent.includes('REACT_APP_API_URL')) {
     console.log('  ✅ PASS: .env file configured correctly');
   } else {
-    console.log('  ❌ FAIL: REACT_APP_API_URL not found in .env');
+    console.log('  ❌ FAIL: VITE_API_URL not found in .env');
     process.exit(1);
   }
 } else {
   console.log('  ❌ FAIL: .env file not found');
   console.log('     Create frontend/.env with:');
-  console.log('     REACT_APP_API_URL=http://localhost:5000');
+  console.log('     VITE_API_URL=http://localhost:5000');
   process.exit(1);
 }
 
 // Test 2: Key Source Files
 console.log('\n✓ Test 2: Key Source Files');
 const sourceFiles = [
-  'src/App.js',
-  'src/index.js',
+  'src/App.jsx',
+  'src/main.jsx',
   'src/apiConfig.js',
   'src/pages/Login.jsx',
   'src/pages/Dashboard.jsx',
@@ -124,8 +124,8 @@ if (fs.existsSync(loginPath)) {
 }
 
 // Test 6: App.js Toast Integration
-console.log('\n✓ Test 6: App.js Toast Integration');
-const appPath = path.join(__dirname, 'src/App.js');
+console.log('\n✓ Test 6: App Toast Integration');
+const appPath = path.join(__dirname, 'src/App.jsx');
 if (fs.existsSync(appPath)) {
   const content = fs.readFileSync(appPath, 'utf-8');
   const checks = [

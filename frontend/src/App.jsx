@@ -38,7 +38,6 @@ const Layout = ({ children }) => {
       <div className="flex-1 overflow-y-auto">
         {children}
       </div>
-      {/* Toast notifications container */}
       <ToastContainer
         position="top-right"
         autoClose={3000}
@@ -62,7 +61,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/view-invoice/:id" element={<WebInvoiceView />} />
-          
+
           <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/ai-manager" element={<ProtectedRoute><AIManager /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute><WhatsAppOrders /></ProtectedRoute>} />

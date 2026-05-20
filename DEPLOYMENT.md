@@ -2,6 +2,38 @@
 
 ## 🚀 Production Deployment Checklist
 
+### Firebase Mode
+
+InWoice supports a server-side Firebase backend. If `backend/firebase-credentials.json` exists, the app uses Firebase Admin instead of the local SQLite service layer.
+
+1. Create a Firebase project.
+2. Enable Firestore in the project.
+3. Create a service-account key and save it as `backend/firebase-credentials.json`.
+4. Keep `backend/firebase-credentials.json` out of git. The repo already ignores `*.json` service-account files.
+5. Restart the backend and verify the startup log says `Using Firebase Admin for database operations.`
+6. Run the migration script from the repo root with your source data ready:
+
+```bash
+node migrate_to_firebase.js
+```
+
+The Firebase service layer stores data in these collections:
+- `settings`
+- `products`
+- `invoices`
+- `customers`
+- `accounts`
+- `journal_entries`
+- `bank_transactions`
+- `tasks`
+- `emails`
+- `marketing_posts`
+
+Recommended production additions:
+- Firestore indexes for `invoices.date`, `customers.email`, `journal_entries.date`, and `bank_transactions.date`.
+- A secured backup/export routine even though Firebase provides managed redundancy.
+- A locked-down admin-only deployment path because the Firebase Admin SDK bypasses client-side Firestore rules.
+
 ### 1. Security Configuration
 
 #### ✅ **Change Default Password**

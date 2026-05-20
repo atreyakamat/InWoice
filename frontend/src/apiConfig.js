@@ -5,8 +5,20 @@
 
 import axios from 'axios';
 
+const getEnvApiBaseUrl = () => {
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+
+  if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+
+  return 'http://localhost:5000';
+};
+
 // Base API URL from environment variable or default to localhost
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+export const API_BASE_URL = getEnvApiBaseUrl();
 
 // Create axios instance with default config
 const apiClient = axios.create({

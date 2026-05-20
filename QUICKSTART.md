@@ -67,10 +67,10 @@ Create `frontend/.env`:
 
 ```env
 # For development
-REACT_APP_API_URL=http://localhost:5000
+VITE_API_URL=http://localhost:5000
 
 # For production (example)
-# REACT_APP_API_URL=https://api.yourdomain.com
+# VITE_API_URL=https://api.yourdomain.com
 ```
 
 ---
