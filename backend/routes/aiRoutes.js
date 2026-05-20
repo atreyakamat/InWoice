@@ -250,16 +250,24 @@ Context: ${context || 'General business growth and product awareness.'}
     const messages = [{ role: 'system', content: MARKETING_PROMPT }];
 
     try {
-        const externalResponse = await callExternalAI(messages, 512);
-        if (externalResponse) {
-            return res.json(cleanJSON(externalResponse));
+        try {
+            const externalResponse = await callExternalAI(messages, 512);
+            if (externalResponse) {
+                return res.json(cleanJSON(externalResponse));
+            }
+        } catch (err) {
+            console.warn("External AI call failed, falling back:", err.message);
         }
 
         if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here') {
-            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-            const result = await model.generateContent(MARKETING_PROMPT);
-            return res.json(cleanJSON(result.response.text()));
+            try {
+                const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                const result = await model.generateContent(MARKETING_PROMPT);
+                return res.json(cleanJSON(result.response.text()));
+            } catch (err) {
+                console.warn("Gemini call failed, falling back to mock:", err.message);
+            }
         }
 
         return res.json({
@@ -290,22 +298,30 @@ Text: ${text}
     const messages = [{ role: 'system', content: ORDER_PROMPT }];
 
     try {
-        const externalResponse = await callExternalAI(messages, 512);
-        if (externalResponse) {
-            return res.json(cleanJSON(externalResponse));
+        try {
+            const externalResponse = await callExternalAI(messages, 512);
+            if (externalResponse) {
+                return res.json(cleanJSON(externalResponse));
+            }
+        } catch (err) {
+            console.warn("External AI call failed, falling back:", err.message);
         }
 
         if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here') {
-            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-            const result = await model.generateContent(ORDER_PROMPT);
-            return res.json(cleanJSON(result.response.text()));
+            try {
+                const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                const result = await model.generateContent(ORDER_PROMPT);
+                return res.json(cleanJSON(result.response.text()));
+            } catch (err) {
+                console.warn("Gemini call failed, falling back to mock:", err.message);
+            }
         }
 
         return res.json({
-            customerName: "Unknown",
-            items: [],
-            total: 0
+            customerName: "Alex (Mock)",
+            items: [{ name: "Neon Light", quantity: 1, price: 500 }],
+            total: 500
         });
     } catch (error) {
         console.error("Order Extraction Error:", error);
@@ -317,7 +333,7 @@ router.post('/chat', async (req, res) => {
     const { message, history } = req.body;
     
     // Build context for the AI Manager
-    const chatContext = history.map(msg => ({
+    const chatContext = (history || []).map(msg => ({
         role: msg.sender === 'user' ? 'user' : 'assistant',
         content: msg.text
     }));
@@ -331,35 +347,40 @@ router.post('/chat', async (req, res) => {
     ];
 
     try {
-        const externalResponse = await callExternalAI(messages, 1024);
-        if (externalResponse) {
-            // Because callExternalAI forces response_format: json_object for Groq, it might return a JSON string.
-            // Let's just return the raw response, or if it wrapped it, extract it.
-            let text = externalResponse;
-            try { 
-                const parsed = JSON.parse(externalResponse);
-                if (parsed.response) text = parsed.response;
-                if (parsed.message) text = parsed.message;
-            } catch(e) {}
-            return res.json({ response: text });
+        try {
+            const externalResponse = await callExternalAI(messages, 1024);
+            if (externalResponse) {
+                let text = externalResponse;
+                try { 
+                    const parsed = JSON.parse(externalResponse);
+                    if (parsed.response) text = parsed.response;
+                    if (parsed.message) text = parsed.message;
+                } catch(e) {}
+                return res.json({ response: text });
+            }
+        } catch (err) {
+            console.warn("External AI chat failed, falling back:", err.message);
         }
 
         if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here') {
-            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-            // Format history for Gemini
-            const geminiHistory = chatContext.map(msg => ({
-                role: msg.role === 'assistant' ? 'model' : 'user',
-                parts: [{ text: msg.content }]
-            }));
-            const chat = model.startChat({
-                history: [{ role: "user", parts: [{ text: SYSTEM_PROMPT }] }, { role: "model", parts: [{ text: "Understood." }] }, ...geminiHistory]
-            });
-            const result = await chat.sendMessage(message);
-            return res.json({ response: result.response.text() });
+            try {
+                const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                const geminiHistory = chatContext.map(msg => ({
+                    role: msg.role === 'assistant' ? 'model' : 'user',
+                    parts: [{ text: msg.content }]
+                }));
+                const chat = model.startChat({
+                    history: [{ role: "user", parts: [{ text: SYSTEM_PROMPT }] }, { role: "model", parts: [{ text: "Understood." }] }, ...geminiHistory]
+                });
+                const result = await chat.sendMessage(message);
+                return res.json({ response: result.response.text() });
+            } catch (err) {
+                console.warn("Gemini chat failed, falling back to mock:", err.message);
+            }
         }
 
-        return res.json({ response: "I am your AI Manager. I see you sent a message, but my cloud AI connection isn't configured right now. Ask me about your business!" });
+        return res.json({ response: "I am your AI Manager. I'm operating in offline mode right now, but I can still help you with structural advice. How can I assist?" });
     } catch (error) {
         console.error("AI Chat Error:", error);
         res.status(500).json({ error: 'Failed to process chat' });

@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { getOrders, addOrder, updateOrderStatus, deleteOrder } = require('../services/dbService');
+const { authMiddleware } = require('../utils/authMiddleware');
 const axios = require('axios');
 
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
     try {
         const orders = await getOrders();
         res.json(orders);
@@ -13,7 +14,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
     try {
         const order = await addOrder(req.body);
         res.json(order);
@@ -23,7 +24,7 @@ router.post('/', async (req, res) => {
     }
 });
 
-router.patch('/:id/status', async (req, res) => {
+router.patch('/:id/status', authMiddleware, async (req, res) => {
     try {
         const { status } = req.body;
         const updated = await updateOrderStatus(req.params.id, status);
@@ -34,7 +35,7 @@ router.patch('/:id/status', async (req, res) => {
     }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authMiddleware, async (req, res) => {
     try {
         await deleteOrder(req.params.id);
         res.json({ success: true });
