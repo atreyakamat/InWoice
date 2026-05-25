@@ -1,16 +1,18 @@
-FROM node:18-alpine
+FROM node:22-bookworm-slim AS build
 
-WORKDIR /usr/src/app
+WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --silent
+RUN npm ci
 
 COPY . .
-
-# Build step (Optional: For production use Nginx)
-# For simple homelab use, let's run the dev server or build & serve
 RUN npm run build
-RUN npm install -g serve
 
-EXPOSE 3000
-CMD ["serve", "-s", "build", "-l", "3000"]
+FROM nginx:1.27-alpine
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/build /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

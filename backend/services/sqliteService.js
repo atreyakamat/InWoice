@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { applyEnvSettings } = require('../utils/envSettings');
 
-const DB_PATH = path.join(__dirname, '../data.db');
+const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, '../data.db');
 const db = new Database(DB_PATH);
 
 // Initialize database schema
@@ -145,6 +145,37 @@ db.exec(`
     status TEXT DEFAULT 'Pending',
     createdAt TEXT
   );
+
+  CREATE TABLE IF NOT EXISTS whatsapp_chats (
+    chat_id TEXT PRIMARY KEY,
+    contact_id TEXT,
+    contact_name TEXT,
+    contact_phone TEXT,
+    title TEXT,
+    last_message TEXT,
+    last_message_at TEXT,
+    classification TEXT DEFAULT 'pending',
+    status TEXT DEFAULT 'Pending',
+    message_count INTEGER DEFAULT 0,
+    conversation_json TEXT,
+    source TEXT DEFAULT 'OpenWA',
+    createdAt TEXT,
+    updatedAt TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS whatsapp_messages (
+    message_id TEXT PRIMARY KEY,
+    chat_id TEXT NOT NULL,
+    direction TEXT DEFAULT 'inbound',
+    sender_id TEXT,
+    sender_name TEXT,
+    body TEXT,
+    message_type TEXT,
+    timestamp TEXT,
+    raw_json TEXT,
+    createdAt TEXT,
+    FOREIGN KEY(chat_id) REFERENCES whatsapp_chats(chat_id) ON DELETE CASCADE
+  );
 `);
 
 // Safe ALTER TABLEs for existing databases
@@ -172,6 +203,202 @@ addColumnSafe('bank_transactions', 'gst_rate', 'REAL DEFAULT 0');
 addColumnSafe('bank_transactions', 'gst_amount', 'REAL DEFAULT 0');
 addColumnSafe('bank_transactions', 'invoice_number', 'TEXT');
 addColumnSafe('bank_transactions', 'notes', 'TEXT');
+
+const parseJsonArray = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    try {
+        const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+        return [];
+    }
+};
+
+const getWhatsAppChatMessages = (chatId) => {
+    if (!chatId) return [];
+    return db.prepare('SELECT * FROM whatsapp_messages WHERE chat_id = ? ORDER BY timestamp ASC, createdAt ASC').all(chatId);
+};
+
+const hydrateWhatsAppChat = (chat) => {
+    if (!chat) return null;
+    const messages = getWhatsAppChatMessages(chat.chat_id);
+    return {
+        ...chat,
+        messages,
+        conversation_json: chat.conversation_json || JSON.stringify(messages)
+    };
+};
+
+const getWhatsAppChat = (chatId) => {
+    const chat = db.prepare('SELECT * FROM whatsapp_chats WHERE chat_id = ?').get(chatId);
+    return hydrateWhatsAppChat(chat);
+};
+
+const upsertWhatsAppChat = (chat) => {
+    if (!chat || !chat.chat_id) {
+        throw new Error('chat_id is required to persist a WhatsApp chat.');
+    }
+
+    const existing = db.prepare('SELECT createdAt FROM whatsapp_chats WHERE chat_id = ?').get(chat.chat_id);
+    const now = new Date().toISOString();
+    const createdAt = existing?.createdAt || chat.createdAt || now;
+    const updatedAt = chat.updatedAt || now;
+    const conversationJson = Array.isArray(chat.conversation_json)
+        ? JSON.stringify(chat.conversation_json)
+        : (chat.conversation_json || null);
+
+    db.prepare(`
+        INSERT INTO whatsapp_chats (
+            chat_id, contact_id, contact_name, contact_phone, title, last_message,
+            last_message_at, classification, status, message_count, conversation_json,
+            source, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(chat_id) DO UPDATE SET
+            contact_id = excluded.contact_id,
+            contact_name = excluded.contact_name,
+            contact_phone = excluded.contact_phone,
+            title = excluded.title,
+            last_message = excluded.last_message,
+            last_message_at = excluded.last_message_at,
+            classification = excluded.classification,
+            status = excluded.status,
+            message_count = excluded.message_count,
+            conversation_json = excluded.conversation_json,
+            source = excluded.source,
+            updatedAt = excluded.updatedAt
+    `).run(
+        chat.chat_id,
+        chat.contact_id || null,
+        chat.contact_name || null,
+        chat.contact_phone || null,
+        chat.title || chat.contact_name || chat.contact_phone || chat.chat_id,
+        chat.last_message || null,
+        chat.last_message_at || null,
+        chat.classification || 'pending',
+        chat.status || 'Pending',
+        Number.isFinite(Number(chat.message_count)) ? Number(chat.message_count) : 0,
+        conversationJson,
+        chat.source || 'OpenWA',
+        createdAt,
+        updatedAt
+    );
+
+    return getWhatsAppChat(chat.chat_id);
+};
+
+const recordWhatsAppMessage = (message) => {
+    if (!message || !message.chat_id || !message.message_id) {
+        throw new Error('chat_id and message_id are required to persist a WhatsApp message.');
+    }
+
+    const existing = db.prepare('SELECT message_id FROM whatsapp_messages WHERE message_id = ?').get(message.message_id);
+    if (!existing) {
+        const createdAt = message.createdAt || new Date().toISOString();
+        db.prepare(`
+            INSERT INTO whatsapp_messages (
+                message_id, chat_id, direction, sender_id, sender_name, body,
+                message_type, timestamp, raw_json, createdAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+            message.message_id,
+            message.chat_id,
+            message.direction || 'inbound',
+            message.sender_id || null,
+            message.sender_name || null,
+            message.body || null,
+            message.message_type || null,
+            message.timestamp || createdAt,
+            message.raw_json || null,
+            createdAt
+        );
+    }
+
+    const messages = getWhatsAppChatMessages(message.chat_id);
+    const lastMessage = messages[messages.length - 1] || null;
+
+    return upsertWhatsAppChat({
+        chat_id: message.chat_id,
+        contact_id: message.contact_id || message.sender_id || null,
+        contact_name: message.contact_name || message.sender_name || null,
+        contact_phone: message.contact_phone || message.contact_id || message.sender_id || null,
+        title: message.title || message.contact_name || message.sender_name || message.chat_id,
+        last_message: lastMessage?.body || message.body || null,
+        last_message_at: lastMessage?.timestamp || message.timestamp || new Date().toISOString(),
+        classification: message.classification || 'pending',
+        status: message.status || 'Pending',
+        message_count: messages.length,
+        conversation_json: JSON.stringify(messages),
+        source: message.source || 'OpenWA'
+    });
+};
+
+const migrateLegacyOrdersToWhatsAppChats = () => {
+    const chatCount = db.prepare('SELECT COUNT(*) as count FROM whatsapp_chats').get();
+    const legacyCount = db.prepare('SELECT COUNT(*) as count FROM orders').get();
+
+    if (!legacyCount || legacyCount.count === 0 || (chatCount && chatCount.count > 0)) {
+        return;
+    }
+
+    const legacyOrders = db.prepare('SELECT * FROM orders ORDER BY createdAt ASC').all();
+    const insertLegacyMessage = db.prepare(`
+        INSERT OR IGNORE INTO whatsapp_messages (
+            message_id, chat_id, direction, sender_id, sender_name, body,
+            message_type, timestamp, raw_json, createdAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const transaction = db.transaction(() => {
+        legacyOrders.forEach((order) => {
+            const messageId = `${order.id}_legacy`;
+            const createdAt = order.createdAt || new Date().toISOString();
+            db.prepare(`
+                INSERT OR IGNORE INTO whatsapp_chats (
+                    chat_id, contact_id, contact_name, contact_phone, title, last_message,
+                    last_message_at, classification, status, message_count, conversation_json,
+                    source, createdAt, updatedAt
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+                order.id,
+                order.customer_contact || null,
+                order.customer_name || null,
+                order.customer_contact || null,
+                order.customer_name || order.customer_contact || order.id,
+                order.order_text || null,
+                createdAt,
+                (order.status || 'Pending').toLowerCase() === 'completed' ? 'order' : 'pending',
+                order.status || 'Pending',
+                1,
+                JSON.stringify(order.order_text ? [{
+                    body: order.order_text,
+                    timestamp: createdAt,
+                    direction: 'inbound'
+                }] : []),
+                order.source || 'WhatsApp',
+                createdAt,
+                createdAt
+            );
+
+            insertLegacyMessage.run(
+                messageId,
+                order.id,
+                'inbound',
+                order.customer_contact || null,
+                order.customer_name || null,
+                order.order_text || null,
+                'text',
+                createdAt,
+                JSON.stringify(order),
+                createdAt
+            );
+        });
+    });
+
+    transaction();
+};
+
+migrateLegacyOrdersToWhatsAppChats();
 
 const seedChartOfAccounts = () => {
     const countRow = db.prepare('SELECT COUNT(*) as count FROM accounts').get();
@@ -691,32 +918,50 @@ const deleteMarketingPost = (id) => {
 };
 
 // --- Orders ---
-const getOrders = () => db.prepare('SELECT * FROM orders ORDER BY createdAt DESC').all();
+const getOrders = () => {
+    const chats = db.prepare('SELECT * FROM whatsapp_chats ORDER BY COALESCE(last_message_at, updatedAt, createdAt) DESC').all();
+    return chats.map(hydrateWhatsAppChat);
+};
 const addOrder = (order) => {
-    const id = order.id || Date.now().toString();
+    const chatId = order.chat_id || order.id || order.customer_contact || Date.now().toString();
     const createdAt = order.createdAt || new Date().toISOString();
-    db.prepare(`
-        INSERT INTO orders (id, source, customer_name, customer_contact, order_text, items_json, total_amount, status, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-        id,
-        order.source || 'WhatsApp',
-        order.customer_name || null,
-        order.customer_contact || null,
-        order.order_text || null,
-        typeof order.items_json === 'string' ? order.items_json : JSON.stringify(order.items_json || []),
-        order.total_amount || 0,
-        order.status || 'Pending',
+    const conversation = parseJsonArray(order.conversation_json || order.messages);
+    const snapshot = conversation.length > 0 ? conversation : (order.order_text ? [{
+        body: order.order_text,
+        timestamp: createdAt,
+        direction: 'inbound'
+    }] : []);
+
+    return upsertWhatsAppChat({
+        chat_id: chatId,
+        contact_id: order.customer_contact || order.contact_id || null,
+        contact_name: order.customer_name || order.contact_name || null,
+        contact_phone: order.customer_contact || order.contact_phone || null,
+        title: order.title || order.customer_name || order.customer_contact || chatId,
+        last_message: order.order_text || order.last_message || null,
+        last_message_at: order.last_message_at || createdAt,
+        classification: order.classification || 'pending',
+        status: order.status || 'Pending',
+        message_count: snapshot.length || Number(order.message_count) || 0,
+        conversation_json: JSON.stringify(snapshot),
+        source: order.source || 'OpenWA',
         createdAt
-    );
-    return { ...order, id, createdAt };
+    });
 };
 const updateOrderStatus = (id, status) => {
-    db.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, id);
-    return db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+    db.prepare('UPDATE whatsapp_chats SET status = ?, updatedAt = ? WHERE chat_id = ?')
+      .run(status, new Date().toISOString(), id);
+    return getWhatsAppChat(id);
+};
+
+const updateOrderClassification = (id, classification) => {
+    db.prepare('UPDATE whatsapp_chats SET classification = ?, updatedAt = ? WHERE chat_id = ?')
+      .run(classification, new Date().toISOString(), id);
+    return getWhatsAppChat(id);
 };
 const deleteOrder = (id) => {
-    db.prepare('DELETE FROM orders WHERE id = ?').run(id);
+    db.prepare('DELETE FROM whatsapp_messages WHERE chat_id = ?').run(id);
+    db.prepare('DELETE FROM whatsapp_chats WHERE chat_id = ?').run(id);
 };
 
 const backupDatabase = async () => {
@@ -759,6 +1004,7 @@ module.exports = {
     getTasks, addTask, updateTask,
     getEmails, addEmail, updateEmail,
     getMarketingPosts, addMarketingPost, updateMarketingPost, deleteMarketingPost,
-    getOrders, addOrder, updateOrderStatus, deleteOrder,
+    getOrders, addOrder, updateOrderStatus, updateOrderClassification, deleteOrder,
+    getWhatsAppChat, getWhatsAppChatMessages, upsertWhatsAppChat, recordWhatsAppMessage,
     backupDatabase
 };

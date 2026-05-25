@@ -104,6 +104,16 @@
 - Node.js 16+ and npm
 - Git
 
+### Docker Deployment
+
+For a VPS or private host, use the bundled compose setup:
+
+```bash
+docker compose up --build
+```
+
+The backend stores SQLite data in `backend/data/` and keeps the OpenWA session data there too, so chats and WhatsApp login state survive container restarts. On the first boot, scan the QR code shown in the backend logs.
+
 ### 1. Clone & Install
 
 ```bash

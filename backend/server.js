@@ -38,7 +38,8 @@ const orderRoutes = require('./routes/orderRoutes');
 const { authMiddleware } = require('./utils/authMiddleware');
 const { errorHandler, notFoundHandler } = require('./utils/errorHandler');
 const logger = require('./utils/logger');
-const { getMarketingPosts, updateMarketingPost } = require('./services/dbService');
+const { getMarketingPosts, updateMarketingPost, backupDatabase } = require('./services/dbService');
+const { startOpenWaService } = require('./services/openWaService');
 
 const app = express();
 
@@ -197,6 +198,10 @@ const server = app.listen(PORT, () => {
   logger.info(`Backend server running on port ${PORT}`, {
     environment: process.env.NODE_ENV || 'development',
     nodeVersion: process.version
+  });
+
+  startOpenWaService().catch((error) => {
+    logger.error('OpenWA service failed to start', { error: error.message });
   });
 });
 

@@ -5,8 +5,13 @@
 
 import axios from 'axios';
 
-// Base API URL from environment variable or default to localhost
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+// Use the configured API URL when provided. In production builds, stay on the
+// current origin so Docker/nginx can proxy /api without hard-coding a host.
+export const API_BASE_URL = process.env.REACT_APP_API_URL || (
+  process.env.NODE_ENV === 'production' && typeof window !== 'undefined'
+    ? window.location.origin
+    : 'http://localhost:5000'
+);
 
 // Create axios instance with default config
 const apiClient = axios.create({
@@ -125,7 +130,9 @@ export const API_ENDPOINTS = {
   // Orders
   ORDERS: {
     LIST: `${API_BASE_URL}/api/orders`,
+    CONVERSATION: (id) => `${API_BASE_URL}/api/orders/${id}/conversation`,
     UPDATE_STATUS: (id) => `${API_BASE_URL}/api/orders/${id}/status`,
+    UPDATE_CLASSIFICATION: (id) => `${API_BASE_URL}/api/orders/${id}/classification`,
     DELETE: (id) => `${API_BASE_URL}/api/orders/${id}`,
     EXTRACT_AI: `${API_BASE_URL}/api/ai/extract-order`
   },

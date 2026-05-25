@@ -91,7 +91,8 @@ const validateEnv = () => {
     hasAdminPasswordHash: !!process.env.ADMIN_PASSWORD_HASH,
     hasFrontendUrl: !!process.env.FRONTEND_URL,
     hasGeminiKey: !!process.env.GEMINI_API_KEY,
-    hasGoogleCreds: !!process.env.GOOGLE_APPLICATION_CREDENTIALS
+    hasGoogleCreds: !!process.env.GOOGLE_APPLICATION_CREDENTIALS,
+    hasOpenWaWebhookToken: !!process.env.OPENWA_WEBHOOK_TOKEN
   });
 
   return true;

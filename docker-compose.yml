@@ -5,21 +5,26 @@ services:
       - "5000:5000"
     env_file: ./backend/.env
     volumes:
-      - ./backend/database.json:/usr/src/app/database.json
-    restart: always
+      - ./backend/data:/usr/src/app/data
+      - ./backend/uploads:/usr/src/app/uploads
+      - ./backend/backups:/usr/src/app/backups
+    environment:
+      DATABASE_PATH: /usr/src/app/data/data.db
+      WA_SESSION_DATA_PATH: /usr/src/app/data/openwa-sessions
+    restart: unless-stopped
 
   frontend:
     build: ./frontend
     ports:
-      - "3000:3000"
+      - "3000:80"
     depends_on:
       - backend
-    restart: always
+    restart: unless-stopped
 
   local-ai:
     build: ./local_ai
     ports:
       - "8000:8000"
-    restart: always
+    restart: unless-stopped
     # Note: Running AI models requires significant RAM. 
     # If deploying on a low-power device, use Gemini Cloud instead.
