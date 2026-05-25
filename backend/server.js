@@ -38,10 +38,28 @@ const orderRoutes = require('./routes/orderRoutes');
 const { authMiddleware } = require('./utils/authMiddleware');
 const { errorHandler, notFoundHandler } = require('./utils/errorHandler');
 const logger = require('./utils/logger');
-const { getMarketingPosts, updateMarketingPost, backupDatabase } = require('./services/dbService');
+const { getMarketingPosts, updateMarketingPost, backupDatabase, recordWhatsAppMessage } = require('./services/dbService');
 const { startOpenWaService } = require('./services/openWaService');
+const {
+  registerJobHandler,
+  startBackgroundJobWorker,
+  enqueueJob,
+  getQueuedJobs
+} = require('./services/backgroundJobService');
 
 const app = express();
+const frontendBuildPath = path.join(__dirname, 'public');
+
+registerJobHandler('whatsapp.message.persist', async (job) => {
+  const saved = await recordWhatsAppMessage(job.payload);
+  return saved;
+});
+
+registerJobHandler('marketing.publish', async (job) => {
+  const post = job.payload;
+  const updated = await updateMarketingPost(post.id, { ...post, status: 'Published' });
+  return updated;
+});
 
 // Set up Cron Job for Marketing Posts
 cron.schedule('* * * * *', async () => {
@@ -52,9 +70,9 @@ cron.schedule('* * * * *', async () => {
             if (post.status === 'Scheduled' && post.scheduledAt) {
                 const scheduledTime = new Date(post.scheduledAt);
                 if (scheduledTime <= now) {
-                    // Simulate posting to social media platforms
-                    console.log(`[Marketing Cron] Publishing post ${post.id} to ${post.platforms}...`);
-                    await updateMarketingPost(post.id, { ...post, status: 'Published' });
+                    console.log(`[Marketing Cron] Queueing post ${post.id} for publication...`);
+                    await updateMarketingPost(post.id, { ...post, status: 'Queued' });
+                    enqueueJob('marketing.publish', post, { priority: 5 });
                 }
             }
         }
@@ -178,6 +196,24 @@ app.use('/api/bank', authMiddleware, apiLimiter, bankRoutes);
 app.use('/api/mail', authMiddleware, apiLimiter, mailRoutes);
 app.use('/api/marketing', authMiddleware, apiLimiter, marketingRoutes);
 app.use('/api/orders', apiLimiter, orderRoutes);
+app.use('/api/system/queue', authMiddleware, apiLimiter, (req, res) => {
+  res.json({
+    jobs: getQueuedJobs(req.query.status),
+    openwa: require('./services/openWaService').getOpenWaStatus()
+  });
+});
+
+// Serve the bundled frontend when the build is present (single-container mode)
+if (fs.existsSync(frontendBuildPath)) {
+  app.use(express.static(frontendBuildPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.method !== 'GET' || !req.accepts('html')) {
+      return next();
+    }
+
+    res.sendFile(path.join(frontendBuildPath, 'index.html'));
+  });
+}
 
 // 404 handler
 app.use(notFoundHandler);
@@ -200,6 +236,7 @@ const server = app.listen(PORT, () => {
     nodeVersion: process.version
   });
 
+  startBackgroundJobWorker();
   startOpenWaService().catch((error) => {
     logger.error('OpenWA service failed to start', { error: error.message });
   });

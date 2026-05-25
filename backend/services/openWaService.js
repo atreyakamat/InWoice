@@ -3,6 +3,7 @@ const path = require('path');
 const { create, ev } = require('@open-wa/wa-automate');
 const logger = require('../utils/logger');
 const { recordWhatsAppMessage } = require('./dbService');
+const { enqueueJob } = require('./backgroundJobService');
 
 let clientPromise = null;
 let openWaClient = null;
@@ -125,8 +126,17 @@ const startOpenWaService = async () => {
 
         client.onMessage(async (message) => {
             try {
-                const saved = await persistOpenWaMessage(message);
-                if (saved) {
+                const payload = normalizeOpenWaMessage(message);
+                if (process.env.BACKGROUND_QUEUE_ENABLED === 'false') {
+                    const saved = await persistOpenWaMessage(message);
+                    if (saved) {
+                        status.lastMessageAt = new Date().toISOString();
+                    }
+                    return;
+                }
+
+                enqueueJob('whatsapp.message.persist', payload, { priority: 10 });
+                if (payload) {
                     status.lastMessageAt = new Date().toISOString();
                 }
             } catch (error) {

@@ -112,7 +112,9 @@ For a VPS or private host, use the bundled compose setup:
 docker compose up --build
 ```
 
-The backend stores SQLite data in `backend/data/` and keeps the OpenWA session data there too, so chats and WhatsApp login state survive container restarts. On the first boot, scan the QR code shown in the backend logs.
+The backend container serves the React app and API together. It stores SQLite data in `backend/data/` and keeps the OpenWA session data there too, so chats and WhatsApp login state survive container restarts. On the first boot, scan the QR code shown in the backend logs.
+
+If you want the optional local AI helper, start it with `docker compose --profile ai up --build`.
 
 ### 1. Clone & Install
 

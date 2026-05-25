@@ -176,6 +176,22 @@ db.exec(`
     createdAt TEXT,
     FOREIGN KEY(chat_id) REFERENCES whatsapp_chats(chat_id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS background_jobs (
+    job_id TEXT PRIMARY KEY,
+    job_type TEXT NOT NULL,
+    payload_json TEXT,
+    status TEXT DEFAULT 'queued',
+    priority INTEGER DEFAULT 0,
+    run_after TEXT,
+    attempts INTEGER DEFAULT 0,
+    max_attempts INTEGER DEFAULT 3,
+    result_json TEXT,
+    error_message TEXT,
+    locked_at TEXT,
+    createdAt TEXT,
+    updatedAt TEXT
+  );
 `);
 
 // Safe ALTER TABLEs for existing databases
@@ -331,6 +347,121 @@ const recordWhatsAppMessage = (message) => {
         conversation_json: JSON.stringify(messages),
         source: message.source || 'OpenWA'
     });
+};
+
+const getBackgroundJob = (jobId) => {
+    const job = db.prepare('SELECT * FROM background_jobs WHERE job_id = ?').get(jobId);
+    if (!job) return null;
+    return {
+        ...job,
+        payload: parseJsonArray(job.payload_json),
+        result: job.result_json ? JSON.parse(job.result_json) : null
+    };
+};
+
+const listBackgroundJobs = (status) => {
+    const query = status
+        ? 'SELECT * FROM background_jobs WHERE status = ? ORDER BY createdAt DESC'
+        : 'SELECT * FROM background_jobs ORDER BY createdAt DESC';
+    const jobs = status ? db.prepare(query).all(status) : db.prepare(query).all();
+    return jobs.map(job => ({
+        ...job,
+        payload: job.payload_json ? JSON.parse(job.payload_json) : null,
+        result: job.result_json ? JSON.parse(job.result_json) : null
+    }));
+};
+
+const enqueueBackgroundJob = (job) => {
+    if (!job || !job.job_type) {
+        throw new Error('job_type is required to enqueue a background job.');
+    }
+
+    const jobId = job.job_id || `${job.job_type}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const now = new Date().toISOString();
+    const payloadJson = job.payload_json
+        || (job.payload !== undefined ? JSON.stringify(job.payload) : JSON.stringify({}));
+
+    db.prepare(`
+        INSERT INTO background_jobs (
+            job_id, job_type, payload_json, status, priority, run_after, attempts,
+            max_attempts, result_json, error_message, locked_at, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+        jobId,
+        job.job_type,
+        payloadJson,
+        job.status || 'queued',
+        Number.isFinite(Number(job.priority)) ? Number(job.priority) : 0,
+        job.run_after || null,
+        Number.isFinite(Number(job.attempts)) ? Number(job.attempts) : 0,
+        Number.isFinite(Number(job.max_attempts)) ? Number(job.max_attempts) : 3,
+        job.result_json || null,
+        job.error_message || null,
+        job.locked_at || null,
+        job.createdAt || now,
+        now
+    );
+
+    return getBackgroundJob(jobId);
+};
+
+const claimNextBackgroundJob = () => {
+    const now = new Date().toISOString();
+    const job = db.prepare(`
+        SELECT * FROM background_jobs
+        WHERE status = 'queued'
+          AND (run_after IS NULL OR run_after <= ?)
+        ORDER BY priority DESC, createdAt ASC
+        LIMIT 1
+    `).get(now);
+
+    if (!job) return null;
+
+    db.prepare(`
+        UPDATE background_jobs
+        SET status = 'running',
+            attempts = attempts + 1,
+            locked_at = ?,
+            updatedAt = ?
+        WHERE job_id = ?
+    `).run(now, now, job.job_id);
+
+    return getBackgroundJob(job.job_id);
+};
+
+const completeBackgroundJob = (jobId, result) => {
+    const now = new Date().toISOString();
+    db.prepare(`
+        UPDATE background_jobs
+        SET status = 'done',
+            result_json = ?,
+            updatedAt = ?,
+            locked_at = NULL,
+            error_message = NULL
+        WHERE job_id = ?
+    `).run(result !== undefined ? JSON.stringify(result) : null, now, jobId);
+    return getBackgroundJob(jobId);
+};
+
+const failBackgroundJob = (jobId, error) => {
+    const now = new Date().toISOString();
+    const message = error instanceof Error ? error.message : String(error || 'Unknown job error');
+    const job = db.prepare('SELECT * FROM background_jobs WHERE job_id = ?').get(jobId);
+    const shouldRetry = job && Number(job.attempts || 0) < Number(job.max_attempts || 3);
+    const nextStatus = shouldRetry ? 'queued' : 'failed';
+    const runAfter = shouldRetry ? new Date(Date.now() + 60000).toISOString() : null;
+
+    db.prepare(`
+        UPDATE background_jobs
+        SET status = ?,
+            error_message = ?,
+            run_after = ?,
+            updatedAt = ?,
+            locked_at = NULL
+        WHERE job_id = ?
+    `).run(nextStatus, message, runAfter, now, jobId);
+
+    return getBackgroundJob(jobId);
 };
 
 const migrateLegacyOrdersToWhatsAppChats = () => {
@@ -1006,5 +1137,6 @@ module.exports = {
     getMarketingPosts, addMarketingPost, updateMarketingPost, deleteMarketingPost,
     getOrders, addOrder, updateOrderStatus, updateOrderClassification, deleteOrder,
     getWhatsAppChat, getWhatsAppChatMessages, upsertWhatsAppChat, recordWhatsAppMessage,
+    enqueueBackgroundJob, getBackgroundJob, listBackgroundJobs, claimNextBackgroundJob, completeBackgroundJob, failBackgroundJob,
     backupDatabase
 };
