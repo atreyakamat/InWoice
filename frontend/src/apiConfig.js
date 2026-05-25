@@ -5,6 +5,7 @@
 
 import axios from 'axios';
 
+<<<<<<< HEAD
 // Use the configured API URL when provided. In production builds, stay on the
 // current origin so Docker/nginx can proxy /api without hard-coding a host.
 export const API_BASE_URL = process.env.REACT_APP_API_URL || (
@@ -12,6 +13,22 @@ export const API_BASE_URL = process.env.REACT_APP_API_URL || (
     ? window.location.origin
     : 'http://localhost:5000'
 );
+=======
+const getEnvApiBaseUrl = () => {
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+
+  if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+
+  return 'http://localhost:5000';
+};
+
+// Base API URL from environment variable or default to localhost
+export const API_BASE_URL = getEnvApiBaseUrl();
+>>>>>>> d40c0b04979e91b5e945a3cc9a3c2f314f79786b
 
 // Create axios instance with default config
 const apiClient = axios.create({

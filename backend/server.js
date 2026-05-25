@@ -11,7 +11,6 @@ try {
   process.exit(1);
 }
 
-require('express-async-errors'); // Must be before routes
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');

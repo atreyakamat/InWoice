@@ -10,7 +10,7 @@
 
 **A modern, secure, and efficient invoice management platform with full CRM capabilities**
 
-[Features](#features) • [Quick Start](#quick-start) • [Documentation](#documentation) • [What's New](#whats-new-in-v21) • [Support](#support)
+[Features](#features) • [Quick Start](#quick-start) • [Documentation](#documentation) • [Firebase Guide](#firebase-guide) • [QA Guide](#qa-guide) • [Security Audit](#security-audit) • [What's New](#whats-new-in-v21) • [Support](#support)
 
 </div>
 
@@ -182,6 +182,9 @@ Open browser: **http://localhost:3000/login**
 - **[QUICKSTART.md](QUICKSTART.md)** - Fast 5-minute setup
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete production deployment guide
 - **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - Comprehensive testing procedures
+- **[FIREBASE_GUIDE.md](FIREBASE_GUIDE.md)** - Firebase setup, data model, migration, and safety checklist
+- **[QA_GUIDE.md](QA_GUIDE.md)** - Release gates, smoke tests, and sign-off checklist
+- **[SECURITY_AUDIT_DEEP_DIVE.md](SECURITY_AUDIT_DEEP_DIVE.md)** - Package-by-package vulnerability scan and remediation plan
 
 ### Technical Documentation
 - **[IMPROVEMENTS.md](IMPROVEMENTS.md)** - Detailed v2.0 improvements

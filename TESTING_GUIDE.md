@@ -8,6 +8,28 @@ This guide helps you test all the improvements before going to production.
 
 ## 1. Backend Tests
 
+### Firebase QA Checks
+
+If Firebase is enabled, run these checks before release:
+
+1. Confirm `backend/firebase-credentials.json` exists locally and is not committed.
+2. Start the backend and verify the log contains `Using Firebase Admin for database operations.`
+3. Run the migration script once against a staging Firebase project.
+4. Verify these collections exist and are readable:
+  - `settings`
+  - `products`
+  - `invoices`
+  - `customers`
+  - `accounts`
+  - `journal_entries`
+  - `bank_transactions`
+  - `tasks`
+  - `emails`
+  - `marketing_posts`
+5. Run the backend smoke suite and confirm all tests pass.
+
+For a fuller release gate, use [QA_GUIDE.md](QA_GUIDE.md).
+
 ### A. Run Integration Tests
 
 ```bash
