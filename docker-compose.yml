@@ -13,6 +13,9 @@ services:
     environment:
       DATABASE_PATH: /app/backend/data/data.db
       WA_SESSION_DATA_PATH: /app/backend/data/openwa-sessions
+      LOCAL_AI_URL: http://local-ai:8000/parse
+      NODE_ENV: production
+      OPENWA_ENABLED: "false"
     restart: unless-stopped
 
   local-ai:

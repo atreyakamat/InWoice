@@ -3,7 +3,7 @@ FROM node:22-bookworm-slim AS frontend-build
 WORKDIR /app/frontend
 
 COPY frontend/package*.json ./
-RUN npm ci
+RUN npm install
 
 COPY frontend/ ./
 RUN npm run build
@@ -19,11 +19,11 @@ RUN apt-get update \
 
 COPY backend/package*.json ./
 ENV PUPPETEER_SKIP_DOWNLOAD=true
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 COPY backend/ ./
 RUN mkdir -p data/openwa-sessions uploads backups logs public
-COPY --from=frontend-build /app/frontend/build ./public
+COPY --from=frontend-build /app/frontend/dist ./public
 
 EXPOSE 5000
 
