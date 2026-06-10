@@ -1,0 +1,88 @@
+================================================================================
+INWOICE v2.1 - COMPREHENSIVE IMPLEMENTED FEATURES LIST
+================================================================================
+
+1. CORE INVOICE MANAGEMENT
+--------------------------------------------------------------------------------
+- Full CRUD Operations: Create, Read, Update, and Delete invoices.
+- Invoice Cloning: One-click duplication of existing invoices.
+- Advanced Search & Filtering: Filter by date, status (Paid/Pending), and customer.
+- Multi-Status Tracking: Monitor payment life cycles (Draft, Pending, Paid, Overdue).
+- UPI QR Code Generation: Automatic generation of payment QR codes on invoices.
+- PDF Generation Engine: High-performance, branded PDF creation (Puppeteer-based).
+- PDF Caching: 80% faster generation for frequently accessed invoices.
+- Product Catalog: Reusable product templates with auto-pricing and description.
+- Smart Tax Calculation: Automated GST and discount calculations.
+- Bulk Actions: Export and manage multiple invoices simultaneously.
+
+2. CUSTOMER RELATIONSHIP MANAGEMENT (CRM)
+--------------------------------------------------------------------------------
+- Automatic Record Creation: Customer profiles created automatically upon invoicing.
+- Detailed Customer Profiles: Full purchase history, lifetime value, and engagement metrics.
+- AI-Driven Segmentation: Auto-categorization of customers:
+  * VIP (High revenue)
+  * Loyal (High order frequency)
+  * Regular (Consistent activity)
+  * New (First-time buyers)
+  * At Risk (Inactive for >90 days)
+- Customer Lifecycle Tracking: Days since last purchase and average days to pay.
+- CRM Search: Find customers by name, email, or Instagram handle.
+- Retention Analytics: Track customer churn and loyalty trends.
+
+3. AI AUTOMATION & INTELLIGENCE
+--------------------------------------------------------------------------------
+- Voice-to-Invoice Parsing: Transform voice notes into structured invoice data.
+- OCR Scanner: Extract data from physical documents and receipts.
+- WhatsApp Order Extraction: Automatically pull order details from chat messages.
+- Hybrid AI Backend: Support for Local AI (Ollama/Python) and Cloud AI (Google Gemini).
+- Intelligent Search: Semantic search capabilities for products and customers.
+- Automated Categorization: AI-assisted tagging of expenses and income.
+
+4. ACCOUNTING & FINANCIAL TOOLS
+--------------------------------------------------------------------------------
+- Double-Entry Ledger: Professional accounting system for all transactions.
+- Bank Reconciliation: Match bank statements with internal records (via OCR/Import).
+- GST Reporting: Automated generation of tax reports for compliance.
+- Expense Tracking: Record and categorize business expenses.
+- Profit & Loss (P&L): Real-time financial health dashboards.
+- Payment Method Distribution: Track revenue across UPI, Bank Transfer, Cash, and Card.
+
+5. ANALYTICS & REPORTING
+--------------------------------------------------------------------------------
+- Interactive Dashboard: Real-time revenue trends and growth metrics.
+- Sales Forecasting: Trend-based projections for future revenue.
+- Product Performance: Analysis of best-selling and most profitable items.
+- Cohort Analysis: Behavior tracking of customer groups over time.
+- Conversion Tracking: Lead-to-sale metrics for marketing campaigns.
+- Export Center: CSV downloads for Invoices, Customers, and Products.
+
+6. INTEGRATIONS & EXTERNAL SYNC
+--------------------------------------------------------------------------------
+- Google Sheets Cloud Sync: Real-time backup and secondary storage.
+- WhatsApp Sharing: Direct sharing of invoice links and PDFs via WhatsApp.
+- Email Client: Integrated SMTP client for sending invoices and marketing emails.
+- IMAP Integration: Sync emails for order tracking and communication history.
+- Offline-First Architecture: Local SQLite/JSON storage with later sync capability.
+- Web Invoice View: Secure, public links for customers to view invoices online.
+
+7. MARKETING & TASK MANAGEMENT
+--------------------------------------------------------------------------------
+- Marketing Campaigns: Email/WhatsApp campaign management.
+- Lead Tracking: Manage potential customers before they make a purchase.
+- Integrated Task Manager: Kanban-style task tracking for business operations.
+- Customer Feedback: Tooling for gathering and storing customer reviews.
+
+8. SECURITY & ARCHITECTURE
+--------------------------------------------------------------------------------
+- JWT Authentication: Secure, token-based login with auto-expiry.
+- Enterprise-Grade Encryption: Bcrypt password hashing (10 rounds).
+- Rate Limiting: Protection against brute-force and DDoS attacks.
+- Secure API Headers: Helmet.js and CORS protection.
+- Input Validation: Strict Zod schema validation for all API requests.
+- Advanced Logging: Winston-based file rotation with separate error/combined logs.
+- Environment Isolation: Strict separation of development and production configs.
+
+================================================================================
+Document Generated: Wednesday, 10 June 2026
+Project Version: 2.1.0
+================================================================================
