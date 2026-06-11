@@ -1,0 +1,1101 @@
+# INWOICE V1 - PDF GENERATION, INVOICE TEMPLATE & DOCUMENT RENDERING ARCHITECTURE DOCUMENT
+
+## Introduction
+
+This document defines the complete document generation system of InWoice.
+
+The invoice is the most important output of the platform.
+
+Customers may never see:
+
+Dashboard
+
+Analytics
+
+CRM
+
+AI
+
+Settings
+
+But every customer will see:
+
+The Invoice
+
+The invoice becomes the public representation of the business.
+
+For Stix N Vibes, invoices should not simply be accounting documents.
+
+They should reinforce trust, professionalism, and brand identity.
+
+This document defines how all business documents should be generated, stored, regenerated, versioned, delivered, and managed.
+
+---
+
+# Document Philosophy
+
+Documents should be:
+
+Professional
+
+Consistent
+
+Branded
+
+Legally Useful
+
+Easy To Share
+
+Easy To Regenerate
+
+Easy To Store
+
+Easy To Search
+
+---
+
+# Supported Document Types
+
+## V1
+
+Invoice
+
+---
+
+## V1.5
+
+Quotation
+
+Proforma Invoice
+
+Receipt
+
+Payment Receipt
+
+---
+
+## V2
+
+Purchase Order
+
+Credit Note
+
+Debit Note
+
+Business Reports
+
+Statements
+
+Contracts
+
+---
+
+# Document Lifecycle
+
+Customer Selected
+
+↓
+
+Products Added
+
+↓
+
+Invoice Created
+
+↓
+
+PDF Generated
+
+↓
+
+Stored
+
+↓
+
+Shared
+
+↓
+
+Viewed
+
+↓
+
+Downloaded
+
+↓
+
+Archived
+
+↓
+
+Regenerated (If Required)
+
+---
+
+# Invoice Template System
+
+## Purpose
+
+Separate business data from visual design.
+
+---
+
+## Benefits
+
+Template flexibility.
+
+Branding support.
+
+Future white-label support.
+
+Easy customization.
+
+---
+
+# Default Invoice Structure
+
+## Header
+
+Business Information
+
+Logo
+
+Invoice Number
+
+Issue Date
+
+Due Date
+
+Status
+
+---
+
+## Customer Section
+
+Customer Name
+
+Customer Address
+
+Phone
+
+Email
+
+GST Information (Future)
+
+---
+
+## Items Section
+
+Products
+
+Packs
+
+Quantity
+
+Price
+
+Discount
+
+Tax
+
+Line Total
+
+---
+
+## Totals Section
+
+Subtotal
+
+Discount
+
+Tax
+
+Shipping
+
+Grand Total
+
+---
+
+## Payment Section
+
+UPI QR
+
+UPI ID
+
+Bank Information
+
+Payment Instructions
+
+---
+
+## Footer
+
+Terms
+
+Thank You Message
+
+Support Information
+
+Business Contact
+
+---
+
+# Stix N Vibes Invoice Layout
+
+## Branding Elements
+
+Logo
+
+Primary Color
+
+Accent Color
+
+Footer Branding
+
+Custom Thank You Message
+
+---
+
+## Example Footer
+
+Thank you for supporting Stix N Vibes.
+
+For custom sticker requests or bulk orders, contact us directly.
+
+---
+
+# Invoice Header Architecture
+
+## Components
+
+Business Logo
+
+Business Name
+
+Address
+
+Contact Information
+
+Invoice Number
+
+Issue Date
+
+Due Date
+
+Status Badge
+
+---
+
+## Benefits
+
+Professional appearance.
+
+Easy identification.
+
+---
+
+# Customer Information Block
+
+## Components
+
+Customer Name
+
+Business Name
+
+Phone
+
+Email
+
+Address
+
+Notes
+
+---
+
+## Future Fields
+
+GST Number
+
+Tax Information
+
+Shipping Address
+
+Billing Address
+
+---
+
+# Product Line Item Architecture
+
+## Components
+
+Item Name
+
+Description
+
+Quantity
+
+Unit Price
+
+Discount
+
+Tax
+
+Line Total
+
+---
+
+## Product Types
+
+Single Product
+
+Pack
+
+Custom Order
+
+Service
+
+Future Products
+
+---
+
+# Sticker Business Enhancements
+
+## Additional Fields
+
+Sticker Type
+
+Material
+
+Finish
+
+Size
+
+Pack Name
+
+Custom Design Reference
+
+---
+
+## Examples
+
+Waterproof Vinyl
+
+Holographic Vinyl
+
+Matte Finish
+
+Gloss Finish
+
+Custom Die Cut
+
+---
+
+## Benefits
+
+Clear customer records.
+
+Improved professionalism.
+
+---
+
+# Pack Display Architecture
+
+## Purpose
+
+Show bundled products clearly.
+
+---
+
+## Example
+
+Anime Starter Pack
+
+Contains:
+
+Naruto Stickers
+
+One Piece Stickers
+
+Demon Slayer Stickers
+
+---
+
+## Benefits
+
+Transparency.
+
+Customer understanding.
+
+---
+
+# Tax Engine Integration
+
+## Purpose
+
+Automatically calculate totals.
+
+---
+
+## Inputs
+
+Product Price
+
+Quantity
+
+Discount
+
+Tax
+
+Shipping
+
+---
+
+## Outputs
+
+Subtotal
+
+Tax
+
+Total
+
+---
+
+## Benefits
+
+Accuracy.
+
+Consistency.
+
+Automation.
+
+---
+
+# Discount Architecture
+
+## Types
+
+Fixed Discount
+
+Percentage Discount
+
+Promotional Discount
+
+Bulk Discount
+
+Customer Loyalty Discount
+
+---
+
+## Benefits
+
+Flexible pricing.
+
+Growth opportunities.
+
+---
+
+# Payment Section Architecture
+
+## Purpose
+
+Make payment frictionless.
+
+---
+
+## Components
+
+UPI QR
+
+UPI ID
+
+Bank Details
+
+Payment Instructions
+
+---
+
+## Future
+
+Stripe
+
+Razorpay
+
+PayPal
+
+Subscriptions
+
+---
+
+# QR Code Architecture
+
+## Purpose
+
+Enable instant payments.
+
+---
+
+## QR Data
+
+UPI ID
+
+Amount
+
+Business Name
+
+Invoice Reference
+
+---
+
+## Benefits
+
+Faster collections.
+
+Better customer experience.
+
+---
+
+# Invoice Status System
+
+## Statuses
+
+Draft
+
+Pending
+
+Sent
+
+Viewed
+
+Partially Paid
+
+Paid
+
+Overdue
+
+Cancelled
+
+---
+
+## Benefits
+
+Payment visibility.
+
+Business tracking.
+
+---
+
+# PDF Rendering Engine
+
+## Technology
+
+Puppeteer
+
+---
+
+## Why
+
+Pixel-perfect rendering.
+
+Reliable output.
+
+Print-friendly.
+
+Brand consistency.
+
+---
+
+# HTML Template Architecture
+
+## Purpose
+
+Generate PDFs from reusable templates.
+
+---
+
+## Flow
+
+Invoice Data
+
+↓
+
+Template Engine
+
+↓
+
+HTML
+
+↓
+
+Puppeteer
+
+↓
+
+PDF
+
+---
+
+## Benefits
+
+Easy maintenance.
+
+Flexible design.
+
+---
+
+# PDF Storage Architecture
+
+## Purpose
+
+Store generated documents.
+
+---
+
+## Information Stored
+
+Invoice ID
+
+File Path
+
+Version
+
+Generated Date
+
+Generated By
+
+File Size
+
+---
+
+## Benefits
+
+Fast retrieval.
+
+Regeneration support.
+
+---
+
+# PDF Versioning Architecture
+
+## Purpose
+
+Track document revisions.
+
+---
+
+## Example
+
+Version 1
+
+Original Invoice
+
+---
+
+Version 2
+
+Address Updated
+
+---
+
+Version 3
+
+Payment Added
+
+---
+
+## Benefits
+
+Auditability.
+
+Historical records.
+
+---
+
+# PDF Regeneration Engine
+
+## Purpose
+
+Recover documents.
+
+This is one of the most important InWoice features.
+
+---
+
+## Example
+
+PDF deleted accidentally.
+
+↓
+
+Invoice still exists.
+
+↓
+
+Click Regenerate
+
+↓
+
+New PDF created.
+
+↓
+
+No duplicate invoice created.
+
+---
+
+## Benefits
+
+Reliability.
+
+Data safety.
+
+---
+
+# Watermark System
+
+## Purpose
+
+Visual document state.
+
+---
+
+## Watermarks
+
+Draft
+
+Paid
+
+Cancelled
+
+Duplicate Copy
+
+Preview
+
+---
+
+## Benefits
+
+Document clarity.
+
+Professional appearance.
+
+---
+
+# Invoice Preview Architecture
+
+## Purpose
+
+Review before generation.
+
+---
+
+## Features
+
+Live Preview
+
+Zoom
+
+Page Navigation
+
+Print Preview
+
+---
+
+## Benefits
+
+Reduced mistakes.
+
+Better confidence.
+
+---
+
+# Email Attachment Architecture
+
+## Purpose
+
+Deliver documents.
+
+---
+
+## Flow
+
+Generate PDF
+
+↓
+
+Attach PDF
+
+↓
+
+Send Email
+
+↓
+
+Track Delivery
+
+---
+
+## Benefits
+
+Professional communication.
+
+Automation.
+
+---
+
+# Public Invoice View
+
+## Purpose
+
+Allow customers to view invoices online.
+
+---
+
+## Example
+
+Secure Link Generated
+
+↓
+
+Customer Opens Link
+
+↓
+
+Invoice Displayed
+
+↓
+
+Download Option
+
+---
+
+## Benefits
+
+Convenience.
+
+Reduced support requests.
+
+---
+
+# Print Optimization
+
+## Purpose
+
+Ensure physical print quality.
+
+---
+
+## Requirements
+
+A4 Format
+
+Proper Margins
+
+High Resolution Logo
+
+Page Break Support
+
+Readable Typography
+
+---
+
+## Benefits
+
+Professional printing.
+
+---
+
+# Export Architecture
+
+## V1
+
+PDF
+
+---
+
+## Future
+
+CSV
+
+Excel
+
+JSON
+
+Print Package
+
+---
+
+# Searchable Document Index
+
+## Purpose
+
+Find documents quickly.
+
+---
+
+## Search Fields
+
+Invoice Number
+
+Customer
+
+Date
+
+Amount
+
+Status
+
+Pack
+
+Product
+
+---
+
+## Benefits
+
+Fast retrieval.
+
+Operational efficiency.
+
+---
+
+# Security Architecture
+
+## Requirements
+
+Access Control
+
+Secure Downloads
+
+Signed URLs (Future)
+
+Audit Logs
+
+Permission Checks
+
+---
+
+## Benefits
+
+Data protection.
+
+Compliance.
+
+---
+
+# Future Template Marketplace
+
+## Purpose
+
+Custom invoice designs.
+
+---
+
+## Examples
+
+Minimal Template
+
+Corporate Template
+
+Creative Template
+
+Sticker Brand Template
+
+Agency Template
+
+---
+
+## Benefits
+
+Customization.
+
+White-label support.
+
+---
+
+# Future Business Documents
+
+The same rendering engine should eventually support:
+
+Quotations
+
+Receipts
+
+Purchase Orders
+
+Reports
+
+Contracts
+
+Certificates
+
+Campaign Reports
+
+---
+
+# Stix N Vibes Example
+
+Customer purchases:
+
+Anime Premium Pack
+
+↓
+
+Invoice Generated
+
+↓
+
+Branded PDF Generated
+
+↓
+
+UPI QR Added
+
+↓
+
+Customer Receives Email
+
+↓
+
+Invoice Stored
+
+↓
+
+Analytics Updated
+
+↓
+
+PDF Can Be Regenerated Anytime
+
+Without creating duplicate records.
+
+---
+
+# Long-Term Vision
+
+The document engine should become the central document system for the entire business.
+
+Every business record should eventually be convertible into a professional document.
+
+Invoices.
+
+Reports.
+
+Quotes.
+
+Statements.
+
+Certificates.
+
+Contracts.
+
+Everything.
+
+---
+
+# Final Objective
+
+The PDF Generation, Invoice Template & Document Rendering Architecture exists to ensure that every business document generated by InWoice is professional, branded, reliable, searchable, regenerable, and future-proof.
+
+The invoice should not simply be a PDF.
+
+It should become a trusted business document that represents the professionalism of the organization while integrating seamlessly into the larger InWoice ecosystem.
