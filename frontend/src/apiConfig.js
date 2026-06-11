@@ -5,6 +5,8 @@
 
 import axios from 'axios';
 
+// Use the configured API URL when provided. In production builds, stay on the
+// current origin so Docker/nginx can proxy /api without hard-coding a host.
 const getEnvApiBaseUrl = () => {
   if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
@@ -12,6 +14,11 @@ const getEnvApiBaseUrl = () => {
 
   if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL) {
     return process.env.REACT_APP_API_URL;
+  }
+
+  // In production builds, default to current origin if served by backend
+  if (process.env.NODE_ENV === 'production' && typeof window !== 'undefined') {
+    return window.location.origin;
   }
 
   return 'http://localhost:5000';
@@ -137,7 +144,9 @@ export const API_ENDPOINTS = {
   // Orders
   ORDERS: {
     LIST: `${API_BASE_URL}/api/orders`,
+    CONVERSATION: (id) => `${API_BASE_URL}/api/orders/${id}/conversation`,
     UPDATE_STATUS: (id) => `${API_BASE_URL}/api/orders/${id}/status`,
+    UPDATE_CLASSIFICATION: (id) => `${API_BASE_URL}/api/orders/${id}/classification`,
     DELETE: (id) => `${API_BASE_URL}/api/orders/${id}`,
     EXTRACT_AI: `${API_BASE_URL}/api/ai/extract-order`
   },

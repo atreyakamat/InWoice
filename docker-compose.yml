@@ -1,25 +1,29 @@
 services:
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "5000:5000"
     env_file: ./backend/.env
     volumes:
-      - ./backend/database.json:/usr/src/app/database.json
-    restart: always
-
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-    restart: always
+      - ./backend/data:/app/backend/data
+      - ./backend/uploads:/app/backend/uploads
+      - ./backend/backups:/app/backend/backups
+    environment:
+      DATABASE_PATH: /app/backend/data/data.db
+      WA_SESSION_DATA_PATH: /app/backend/data/openwa-sessions
+      LOCAL_AI_URL: http://local-ai:8000/parse
+      NODE_ENV: production
+      OPENWA_ENABLED: "false"
+    restart: unless-stopped
 
   local-ai:
     build: ./local_ai
     ports:
       - "8000:8000"
-    restart: always
+    restart: unless-stopped
+    profiles:
+      - ai
     # Note: Running AI models requires significant RAM. 
     # If deploying on a low-power device, use Gemini Cloud instead.

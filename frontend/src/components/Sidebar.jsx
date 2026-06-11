@@ -10,7 +10,7 @@ const Sidebar = () => {
     const links = [
         { name: 'Dashboard', path: '/', icon: Home },
         { name: 'AI Manager', path: '/ai-manager', icon: Bot },
-        { name: 'WhatsApp Orders', path: '/orders', icon: ShoppingCart },
+        { name: 'WhatsApp Chats', path: '/orders', icon: ShoppingCart },
         { name: 'Inbox', path: '/mail', icon: Mail },
         { name: 'Marketing', path: '/marketing', icon: Megaphone },
         { name: 'Create Invoice', path: '/create-invoice', icon: PlusCircle },
