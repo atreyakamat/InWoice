@@ -1,0 +1,359 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("ADMIN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BusinessSettings {
+  id              String   @id @default(uuid())
+  businessName    String
+  logoUrl         String?
+  address         String?
+  email           String?
+  phone           String?
+  website         String?
+  gstNumber       String?
+  upiId           String?
+  upiQrUrl        String?
+  bankName        String?
+  accountNumber   String?
+  ifscCode        String?
+  invoiceFooter   String?
+  termsConditions String?
+  thankYouMessage String?
+  smtpHost        String?
+  smtpPort        String?
+  smtpUsername    String?
+  smtpPassword    String?
+  googleSheetId   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Customer {
+  id         String     @id @default(uuid())
+  name       String
+  email      String?
+  phone      String?
+  instagram  String?
+  notes      String?
+  segment    String?    @default("New")
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  invoices   Invoice[]
+  activities Activity[]
+}
+
+model Product {
+  id                String             @id @default(uuid())
+  name              String
+  description       String?
+  category          String?
+  material          String?
+  finish            String?
+  size              String?
+  shape             String?
+  isWaterproof      Boolean            @default(false)
+  price             Float
+  stock             Int                @default(0)
+  imageUrl          String?
+  status            String             @default("ACTIVE")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  packItems         PackItem[]
+  bom               ProductBOM?
+  productionOutputs ProductionOutput[]
+}
+
+model Pack {
+  id          String     @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  imageUrl    String?
+  status      String     @default("ACTIVE")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  items       PackItem[]
+}
+
+model PackItem {
+  id        String  @id @default(uuid())
+  packId    String
+  productId String
+  quantity  Int     @default(1)
+  pack      Pack    @relation(fields: [packId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([packId, productId])
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  invoiceNumber String        @unique
+  customerId    String
+  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  date          DateTime      @default(now())
+  dueDate       DateTime?
+  subtotal      Float
+  taxAmount     Float         @default(0)
+  shippingCost  Float         @default(0)
+  discount      Float         @default(0)
+  grandTotal    Float
+  status        String        @default("DRAFT") // DRAFT, PENDING, PAID, OVERDUE, CANCELLED
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  items         InvoiceItem[]
+  payments      Payment[]
+  files         File[]
+  fulfillment   Fulfillment?
+}
+
+model InvoiceItem {
+  id        String  @id @default(uuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  type      String // PRODUCT or PACK
+  itemId    String // ID of Product or Pack
+  name      String
+  quantity  Int
+  unitPrice Float
+  total     Float
+}
+
+model Payment {
+  id            String   @id @default(uuid())
+  invoiceId     String
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount        Float
+  paymentDate   DateTime @default(now())
+  paymentMethod String // UPI, BANK_TRANSFER, CASH
+  referenceId   String?
+  notes         String?
+  createdAt     DateTime @default(now())
+}
+
+model File {
+  id            String   @id @default(uuid())
+  filename      String
+  originalName  String
+  mimeType      String
+  size          Int
+  path          String
+  referenceType String? // INVOICE, REPORT, etc.
+  referenceId   String?
+  invoiceId     String?
+  invoice       Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Activity {
+  id            String    @id @default(uuid())
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  eventType     String
+  title         String
+  description   String?
+  referenceType String?
+  referenceId   String?
+  metadata      String?
+  createdAt     DateTime  @default(now())
+}
+
+model AnalyticsSnapshot {
+  id              String   @id @default(uuid())
+  date            DateTime @default(now())
+  totalRevenue    Float    @default(0)
+  totalInvoices   Int      @default(0)
+  activeCustomers Int      @default(0)
+  data            String // JSON string of snapshot data
+  createdAt       DateTime @default(now())
+}
+
+model SyncLog {
+  id            String   @id @default(uuid())
+  target        String // GOOGLE_SHEETS
+  status        String // SUCCESS, FAILED
+  recordsSynced Int      @default(0)
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+}
+
+model EmailLog {
+  id            String   @id @default(uuid())
+  toAddress     String
+  subject       String
+  status        String // SENT, FAILED
+  errorMessage  String?
+  referenceType String?
+  referenceId   String?
+  createdAt     DateTime @default(now())
+}
+
+// V4 ERP Models
+
+model Supplier {
+  id             String          @id @default(uuid())
+  name           String
+  phone          String?
+  email          String?
+  address        String?
+  gst            String?
+  paymentTerms   String?
+  leadTime       Int? // In days
+  notes          String?
+  status         String          @default("ACTIVE")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  inventoryItems InventoryItem[]
+  purchaseOrders PurchaseOrder[]
+}
+
+model InventoryItem {
+  id               String              @id @default(uuid())
+  name             String
+  sku              String?             @unique
+  category         String // Raw Material, Packaging, Finished Product
+  unit             String // Roll, Sheet, Unit
+  currentStock     Float               @default(0)
+  minimumStock     Float               @default(0)
+  reorderLevel     Float               @default(0)
+  costPerUnit      Float               @default(0)
+  supplierId       String?
+  supplier         Supplier?           @relation(fields: [supplierId], references: [id])
+  location         String?
+  notes            String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  poItems          PurchaseOrderItem[]
+  bomItems         BOMItem[]
+  productionUsages ProductionUsage[]
+  stockMovements   StockMovement[]
+}
+
+model PurchaseOrder {
+  id          String              @id @default(uuid())
+  poNumber    String              @unique
+  supplierId  String
+  supplier    Supplier            @relation(fields: [supplierId], references: [id])
+  status      String              @default("DRAFT") // DRAFT, ORDERED, PARTIAL, RECEIVED, CANCELLED
+  totalAmount Float               @default(0)
+  notes       String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  items       PurchaseOrderItem[]
+}
+
+model PurchaseOrderItem {
+  id               String        @id @default(uuid())
+  purchaseOrderId  String
+  purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  inventoryItemId  String
+  inventoryItem    InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  quantityOrdered  Float
+  quantityReceived Float         @default(0)
+  unitPrice        Float
+  totalPrice       Float
+}
+
+model ProductBOM {
+  id        String    @id @default(uuid())
+  productId String    @unique
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  items     BOMItem[]
+}
+
+model BOMItem {
+  id               String        @id @default(uuid())
+  bomId            String
+  bom              ProductBOM    @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  inventoryItemId  String
+  inventoryItem    InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  quantityRequired Float
+}
+
+model ProductionBatch {
+  id          String             @id @default(uuid())
+  batchNumber String             @unique
+  status      String             @default("PLANNED") // PLANNED, IN_PROGRESS, COMPLETED, CANCELLED
+  startDate   DateTime?
+  endDate     DateTime?
+  notes       String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  outputs     ProductionOutput[]
+  usages      ProductionUsage[]
+}
+
+model ProductionOutput {
+  id                String          @id @default(uuid())
+  productionBatchId String
+  batch             ProductionBatch @relation(fields: [productionBatchId], references: [id], onDelete: Cascade)
+  productId         String
+  product           Product         @relation(fields: [productId], references: [id])
+  quantityProduced  Int
+}
+
+model ProductionUsage {
+  id                String          @id @default(uuid())
+  productionBatchId String
+  batch             ProductionBatch @relation(fields: [productionBatchId], references: [id], onDelete: Cascade)
+  inventoryItemId   String
+  inventoryItem     InventoryItem   @relation(fields: [inventoryItemId], references: [id])
+  quantityConsumed  Float
+}
+
+model StockMovement {
+  id              String        @id @default(uuid())
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  type            String // PURCHASE, PRODUCTION, SALE, ADJUSTMENT, RETURN, DAMAGE, TRANSFER
+  quantity        Float // Positive or negative
+  referenceType   String? // INVOICE, PO, BATCH
+  referenceId     String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+}
+
+model Fulfillment {
+  id                String           @id @default(uuid())
+  invoiceId         String           @unique
+  invoice           Invoice          @relation(fields: [invoiceId], references: [id])
+  status            String           @default("PENDING") // PENDING, PACKING, PACKED, SHIPPED, DELIVERED, RETURNED, CANCELLED
+  trackingNumber    String?
+  courier           String?
+  shippingCost      Float            @default(0)
+  estimatedDelivery DateTime?
+  actualDelivery    DateTime?
+  notes             String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  shipmentRecords   ShipmentRecord[]
+}
+
+model ShipmentRecord {
+  id            String      @id @default(uuid())
+  fulfillmentId String
+  fulfillment   Fulfillment @relation(fields: [fulfillmentId], references: [id], onDelete: Cascade)
+  status        String
+  location      String?
+  timestamp     DateTime    @default(now())
+  notes         String?
+}
