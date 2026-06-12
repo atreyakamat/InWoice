@@ -205,7 +205,54 @@ model EmailLog {
   createdAt     DateTime @default(now())
 }
 
-// V4 ERP Models
+// V5 Executive Intelligence Models
+
+model BusinessHealthScore {
+  id               String   @id @default(uuid())
+  overallScore     Float // 0-100
+  revenueHealth    Float
+  profitHealth     Float
+  inventoryHealth  Float
+  customerHealth   Float
+  operationsHealth Float
+  cashFlowHealth   Float
+  aiConfidence     Float    @default(1.0)
+  createdAt        DateTime @default(now())
+}
+
+model BusinessOpportunity {
+  id            String   @id @default(uuid())
+  title         String
+  description   String
+  category      String // SALES, INVENTORY, MARKETING, PRODUCT, RETENTION
+  impact        String // HIGH, MEDIUM, LOW
+  status        String   @default("PENDING") // PENDING, APPROVED, REJECTED, SNOOZED, EXECUTED
+  referenceType String? // CUSTOMER, PRODUCT, PACK, INVENTORY
+  referenceId   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model BusinessRisk {
+  id            String   @id @default(uuid())
+  title         String
+  description   String
+  category      String // CHURN, INVENTORY, SUPPLIER, MARGIN, CASHFLOW
+  severity      String // CRITICAL, HIGH, MEDIUM, LOW
+  status        String   @default("ACTIVE") // ACTIVE, MITIGATED, IGNORED
+  referenceType String?
+  referenceId   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ExecutiveBriefing {
+  id        String   @id @default(uuid())
+  type      String // DAILY, WEEKLY, MONTHLY, QUARTERLY
+  content   String // The full AI-generated briefing markdown
+  metrics   String? // JSON snapshot of metrics at time of briefing
+  createdAt DateTime @default(now())
+}
 
 model Supplier {
   id             String          @id @default(uuid())

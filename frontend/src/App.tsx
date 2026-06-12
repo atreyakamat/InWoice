@@ -5,8 +5,9 @@ import Login from './pages/Login';
 import DashboardLayout from './layouts/DashboardLayout';
 import Customers from './pages/Customers';
 import Inventory from './pages/Inventory';
-import Suppliers from './pages/Suppliers';
 import Production from './pages/Production';
+import BOMManager from './pages/BOMManager';
+import ExecutiveDashboard from './pages/ExecutiveDashboard';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
@@ -14,8 +15,6 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (!user) return <Navigate to="/login" />;
   return <>{children}</>;
 };
-
-const Dashboard = () => <div className="p-8"><h1 className="text-2xl font-bold">Dashboard</h1><p>Welcome to InWoice V2 Phase 1</p></div>;
 
 const AppRoutes = () => {
   return (
@@ -29,10 +28,11 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Dashboard />} />
+        <Route index element={<ExecutiveDashboard />} />
         {/* We will add Customers, Products, Packs, and Settings routes here */}
         <Route path="customers" element={<Customers />} />
-        <Route path="products" element={<div className="p-8">Products Page Pending</div>} />
+        <Route path="products" element={<Products />} />
+        <Route path="products/:productId/bom" element={<BOMManager />} />
         <Route path="packs" element={<div className="p-8">Packs Page Pending</div>} />
         <Route path="inventory" element={<Inventory />} />
         <Route path="suppliers" element={<Suppliers />} />
@@ -54,3 +54,4 @@ function App() {
 }
 
 export default App;
+t App;

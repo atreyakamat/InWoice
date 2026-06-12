@@ -9,6 +9,10 @@ import packRoutes from './routes/packs.routes';
 import inventoryRoutes from './routes/inventory.routes';
 import supplierRoutes from './routes/suppliers.routes';
 import productionRoutes from './routes/production.routes';
+import bomRoutes from './routes/bom.routes';
+import invoiceRoutes from './routes/invoices.routes';
+import aiRoutes from './routes/ai.routes';
+import executiveRoutes from './routes/executive.routes';
 
 dotenv.config();
 
@@ -27,6 +31,10 @@ app.use('/api/packs', packRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/production', productionRoutes);
+app.use('/api/bom', bomRoutes);
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/executive', executiveRoutes);
 
 // Basic health check
 app.get('/health', (req: Request, res: Response) => {
