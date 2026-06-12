@@ -13,6 +13,8 @@ import bomRoutes from './routes/bom.routes';
 import invoiceRoutes from './routes/invoices.routes';
 import aiRoutes from './routes/ai.routes';
 import executiveRoutes from './routes/executive.routes';
+import purchaseOrderRoutes from './routes/purchase-orders.routes';
+import fulfillmentRoutes from './routes/fulfillment.routes';
 
 dotenv.config();
 
@@ -35,6 +37,8 @@ app.use('/api/bom', bomRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/executive', executiveRoutes);
+app.use('/api/purchase-orders', purchaseOrderRoutes);
+app.use('/api/fulfillments', fulfillmentRoutes);
 
 // Basic health check
 app.get('/health', (req: Request, res: Response) => {

@@ -1,11 +1,28 @@
 import { Router } from 'express';
-import { getBOM, updateBOM } from '../controllers/bom.controller';
-import { authenticate } from '../middlewares/auth.middleware';
+import { BomService } from '../services/erp/bom.service';
 
 const router = Router();
-router.use(authenticate);
+const svc = new BomService();
 
-router.get('/:productId', getBOM);
-router.put('/:productId', updateBOM);
+// Upsert BOM for a product (create or replace)
+router.post('/', async (req, res) => {
+  try {
+    const bom = await svc.upsertBom(req.body);
+    res.json(bom);
+  } catch (e:any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Get BOM by product ID
+router.get('/product/:productId', async (req, res) => {
+  try {
+    const bom = await svc.getByProduct(req.params.productId);
+    res.json(bom);
+  } catch (e:any) {
+    res.status(404).json({ error: e.message });
+  }
+});
 
 export default router;
+

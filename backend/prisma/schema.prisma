@@ -291,6 +291,7 @@ model InventoryItem {
   bomItems         BOMItem[]
   productionUsages ProductionUsage[]
   stockMovements   StockMovement[]
+  EventInventory   EventInventory[]
 }
 
 model PurchaseOrder {
@@ -403,4 +404,29 @@ model ShipmentRecord {
   location      String?
   timestamp     DateTime    @default(now())
   notes         String?
+}
+
+model Event {
+  id        String           @id @default(uuid())
+  name      String
+  location  String?
+  startDate DateTime?
+  endDate   DateTime?
+  status    String           @default("PLANNED") // PLANNED, ACTIVE, COMPLETED, CANCELLED
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  inventory EventInventory[]
+}
+
+model EventInventory {
+  id                String        @id @default(uuid())
+  eventId           String
+  event             Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  inventoryItemId   String
+  inventoryItem     InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  quantityAllocated Float
+  quantitySold      Float         @default(0)
+  quantityReturned  Float         @default(0)
+
+  @@unique([eventId, inventoryItemId])
 }
