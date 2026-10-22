@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+.git
+_old_v3_backup
+_old_v4_backup
+docs

@@ -1,895 +1,96 @@
-# 🧾 InWoice v2.1 - AI-Powered Invoice Management & CRM Platform
+# InWoice
 
-<div align="center">
+Invoicing, CRM and operations for small product businesses. Built for Indian GST,
+self-hosting, and modest hardware.
 
-![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)
-![Node](https://img.shields.io/badge/node-%3E%3D16.0.0-green.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Security](https://img.shields.io/badge/security-enterprise--grade-brightgreen.svg)
-![CRM](https://img.shields.io/badge/CRM-enabled-purple.svg)
+**Stack:** PostgreSQL · Node.js 20+ (Express 5, Prisma) · React 19 (Vite, Tailwind 4) · optional AI (Claude API or local Ollama)
 
-**A modern, secure, and efficient invoice management platform with full CRM capabilities**
+## What it does
 
-[Features](#features) • [Quick Start](#quick-start) • [Documentation](#documentation) • [Firebase Guide](#firebase-guide) • [QA Guide](#qa-guide) • [Security Audit](#security-audit) • [What's New](#whats-new-in-v21) • [Support](#support)
+| Area | Features |
+|---|---|
+| **Invoicing** | Drafts → issue → partial/full payments → paid. Automatic numbering, GST split (CGST+SGST within your state, IGST across states, detected from state names or GSTINs), discounts, shipping, HSN codes. PDF with a UPI QR code that pre-fills the balance. Email with the PDF attached, WhatsApp share link, duplicate, cancel (stock restored). Overdue is computed live. |
+| **Credit notes** | Returns, post-sale discounts and corrections against issued invoices. GST is reversed at the original rates, returned goods can go back into stock, and refunds due are worked out automatically. Credit note PDFs. |
+| **GST reports** | GSTR-1 data for any month or quarter: B2B, B2C large/small, credit notes (CDNR/CDNUR), HSN summary (B2B/B2C), documents issued. CSV in the GST offline tool layout, plus a line-level sales register. GSTINs are checksum-validated. |
+| **Bills & expenses** | Supplier bills (from a purchase order or standalone) with GST split, claimable vs blocked input credit, optional stock-in, due dates from supplier terms, part payments and what you owe each supplier. Expenses (rent, salaries, utilities…) entered with or without GST. |
+| **Accounts** | Profit & loss by category and month, GSTR-3B summary (output tax, input tax credit, legal set-off order, cash payable), receivables and payables ageing, cash in/out with what falls due in the next 7/30 days, purchase register CSV. Dashboard shows profit this month and bills overdue. |
+| **Payment reminders** | Automatic emails before and after the due date on a schedule you choose (e.g. -1, 3, 7, 15 days), with the PDF and UPI QR attached. One-click manual reminders; WhatsApp messages switch to reminder wording when an invoice is overdue. |
+| **Quotes & recurring** | Quotations with PDF and email, converted to invoices in one click. Recurring invoices (weekly to yearly) created, issued and emailed by the scheduler. |
+| **Customer portal** | A private link per customer to see invoices, balance and statement and download PDFs. Statements of account by PDF/email, optionally every month. |
+| **Bank & tax depth** | Bank statement CSV import with automatic matching. TDS on receipts and supplier payments. Supplier debit notes. GSTR-1 JSON for the offline tool, a GSTR-2B check against your bills, stock valuation in the P&L. |
+| **Actions (approve, then run)** | Chase overdue invoices with editable (AI-written or template) emails, create draft purchase orders for low materials, re-send expiring quotes. A monthly summary email for owners. With AI on, a bill photo or PDF fills in the bill form. |
+| **Customers** | Contact details, GSTIN, lifetime value, outstanding balance, invoice history, activity timeline, notes. |
+| **Catalog** | Products (price, cost, margin, tax, stock, low-stock alerts) and packs (bundles that draw down component stock). |
+| **Operations** | Raw-material inventory with a full movement audit trail, suppliers, purchase orders with partial receiving, bills of materials, production batches, made-to-order consumption, fulfillment/shipping tracking, pop-up event stock. |
+| **Insights** | Dashboard (12-month chart, KPIs, alerts), business health score, risks and opportunities, 30-day forecast. These are rule-based and work **without any AI**. |
+| **AI (optional)** | Written daily briefing and "Ask about your business" Q&A, using **Claude** (API key) or a **local model via Ollama**. |
+| **Admin & security** | Owner setup on first run. Roles: Admin, Staff, Sales, Stores, Accountant. Two-factor sign-in, activity log, period lock after GST filing, password reset by email. CSV exports for your accountant. Automatic daily backups (kept 14 days) with optional off-site copies to S3-compatible storage; download or restore any time. |
+| **Hosting** | One business per install, or **many businesses on one server** (SaaS mode): a separate schema per business, subdomains or custom domains, sign-up with a free trial, plans and a platform admin page. Error alerts to Slack/Discord. |
 
-</div>
+## Quick start (development)
 
----
-
-## 🎉 What's New in v2.1
-
-**Complete CRM System + Advanced Features:**
-
-- 👥 **Full Customer Relationship Management**
-  - Customer detail pages with complete history
-  - Advanced segmentation (VIP, Loyal, Regular, New, At Risk)
-  - Customer lifetime value tracking
-  - Purchase behavior analytics
-
-- 📊 **Enhanced Analytics**
-  - Platform-wide metrics dashboard
-  - Customer retention rate
-  - Conversion rate tracking
-  - Average days to pay analysis
-
-- 📥 **Data Export**
-  - Export invoices, customers, products to CSV
-  - One-click download from UI
-  - Properly formatted for spreadsheets
-
-- ⚡ **Invoice Management**
-  - Duplicate/clone invoices
-  - Edit existing invoices
-  - View single invoice details
-  - Better invoice workflows
-
-**[See Complete v2.1 Release Notes →](RELEASE_NOTES_v2.1.md)**
-
----
-
-## ✨ Features
-
-### Core Invoice Management
-- ✅ **Create & Manage Invoices** - Full CRUD with rich details
-- ✅ **AI-Powered Parsing** - Voice input to structured invoices
-- ✅ **PDF Generation** - Professional, branded PDF invoices (80% faster with caching)
-- ✅ **Email Integration** - Send invoices via SMTP
-- ✅ **Payment Tracking** - Track pending/paid status
-- ✅ **Product Catalog** - Reusable product templates
-- ✅ **Duplicate Invoices** - Clone existing invoices easily
-- ✅ **Edit Invoices** - Update existing invoice details
-
-### Customer Relationship Management (CRM)
-- ✅ **Customer Database** - Automatic customer record generation
-- ✅ **Customer Profiles** - Detailed customer pages with full history
-- ✅ **Customer Segmentation** - Auto-categorize: VIP, Loyal, Regular, New, At Risk
-- ✅ **Lifecycle Tracking** - Monitor customer journey and engagement
-- ✅ **Purchase Analytics** - Per-customer metrics and insights
-- ✅ **Customer Search** - Find customers by name, email, or Instagram
-- ✅ **Export Customers** - Download customer database as CSV
-
-### Advanced Analytics
-- ✅ **Sales Dashboard** - Monthly/daily revenue trends
-- ✅ **Customer Analytics** - Retention rate, conversion rate, avg customer value
-- ✅ **Product Performance** - Best-selling products analysis
-- ✅ **Payment Insights** - Payment method distribution
-- ✅ **Growth Tracking** - Customer acquisition trends
-- ✅ **Cohort Analysis** - Customer behavior over time
-
-### Data Management
-- ✅ **CSV Export** - Export invoices, customers, products
-- ✅ **Google Sheets Sync** - Real-time cloud backup
-- ✅ **Pagination** - Handle thousands of records efficiently
-- ✅ **Offline Support** - Works without internet, syncs later
-
-### Advanced Features
-- ✅ **Hybrid AI Support** - Local (Ollama, Python) + Cloud (Gemini)
-- ✅ **UPI QR Codes** - Automatic payment QR generation
-- ✅ **WhatsApp Sharing** - One-click invoice sharing
-- ✅ **Multiple Payment Methods** - UPI, Bank Transfer, Cash, Card
-
-### v2.0 Security Features
-- 🔒 **JWT Authentication** - Token-based auth with expiration
-- 🔒 **Password Hashing** - bcrypt for secure storage
-- 🔒 **Rate Limiting** - Prevent brute-force attacks (5/15min auth, 100/15min API)
-- 🔒 **CORS Protection** - Restricted origins
-- 🔒 **Security Headers** - Helmet.js protection
-- 🔒 **Input Validation** - Zod schema validation
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Node.js 16+ and npm
-- Git
-
-### Docker Deployment
-
-For a VPS or private host, use the bundled compose setup:
+Needs Node.js 20+ and PostgreSQL 14+.
 
 ```bash
-docker compose up --build
+# 1. Create a database and user (adjust the password)
+psql -U postgres -c "CREATE ROLE inwoice LOGIN PASSWORD 'change-me' CREATEDB;"
+psql -U postgres -c "CREATE DATABASE inwoice OWNER inwoice;"
+psql -U postgres -c "CREATE DATABASE inwoice_test OWNER inwoice;"
+
+# 2. Configure the backend
+cp backend/.env.example backend/.env    # then edit DATABASE_URL, TEST_DATABASE_URL, JWT_SECRET
+
+# 3. Install, migrate, and (optionally) load demo data
+npm run setup
+npm run seed        # demo login: demo@inwoice.local / demo12345
+
+# 4. Run API + web app with hot reload
+npm run dev         # open http://localhost:5173
 ```
 
-The backend container serves the React app and API together. It stores SQLite data in `backend/data/` and keeps the OpenWA session data there too, so chats and WhatsApp login state survive container restarts. On the first boot, scan the QR code shown in the backend logs.
+Skip `npm run seed` for a real install. On first visit you create the owner account.
+Locked out? `npm --prefix backend run reset-password -- <email> <new password>`.
 
-If you want the optional local AI helper, start it with `docker compose --profile ai up --build`.
+Backups from the command line (after `npm run build`): `npm run backup` writes one to
+`backend/backups/`; `npm run restore -- <file> [--replace]` loads one into a migrated database.
 
-### 1. Clone & Install
+## Production (one process, one port)
 
 ```bash
-# Clone repository
-git clone https://github.com/yourusername/InWoice.git
-cd InWoice
-
-# Install backend dependencies
-cd backend
-npm install
-
-# Install frontend dependencies
-cd ../frontend
-npm install
+npm run build       # builds the React app and compiles the API
+npm start           # serves API + app on http://localhost:5000
 ```
 
-### 2. Configure Environment
+Docker alternative: `cp .env.docker.example .env`, fill in the values, then run `docker compose up -d --build`.
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for servers, HTTPS, backups, monitoring, hosting many
+businesses, and low-resource tuning.
 
-**Backend (.env):**
-```bash
-cd backend
-cp .env.example .env
-
-# Generate JWT secret
-openssl rand -base64 32
-
-# Edit .env and add:
-# JWT_SECRET=<paste-generated-secret>
-# ADMIN_PASSWORD=admin123  # Change this!
-# FRONTEND_URL=http://localhost:3000
-```
-
-**Frontend (.env):**
-```bash
-cd frontend
-echo "REACT_APP_API_URL=http://localhost:5000" > .env
-```
-
-### 3. Start Services
+## Tests
 
 ```bash
-# Backend (terminal 1)
-cd backend
-npm start
-
-# Frontend (terminal 2)
-cd frontend
-npm start
+npm test                         # 276 tests: API integration + unit (uses TEST_DATABASE_URL) + frontend type-check
+npm run test:unit                # 72 unit tests only: pure rules, no database, a couple of seconds
+npm --prefix frontend run e2e    # real-browser smoke test against a running instance (41 checks)
 ```
 
-### 4. Access Application
+See [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md), including the manual QA checklist.
 
-Open browser: **http://localhost:3000/login**
+## Documentation
 
-**Default credentials:**
-- Password: `admin123` (⚠️ Change immediately!)
+- [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md): local setup on Windows, macOS and Linux, plus troubleshooting
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): production deployment, HTTPS, backups, updates
+- [docs/AI_GUIDE.md](docs/AI_GUIDE.md): Claude vs local AI vs off; costs, privacy, hardware
+- [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md): automated tests and the release checklist
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): code layout, data model, business rules
+- [docs/ROADMAP.md](docs/ROADMAP.md): what changed in each version (v4.0 is the latest), known gaps, what to build next
+- `docs/legacy/` holds documentation for earlier versions (SQLite/Firebase era), kept for reference only
 
----
-
-## 📚 Documentation
-
-### Essential Guides
-- **[RELEASE_NOTES_v2.1.md](RELEASE_NOTES_v2.1.md)** - v2.1 CRM features
-- **[QUICKSTART.md](QUICKSTART.md)** - Fast 5-minute setup
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete production deployment guide
-- **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - Comprehensive testing procedures
-- **[FIREBASE_GUIDE.md](FIREBASE_GUIDE.md)** - Firebase setup, data model, migration, and safety checklist
-- **[QA_GUIDE.md](QA_GUIDE.md)** - Release gates, smoke tests, and sign-off checklist
-- **[SECURITY_AUDIT_DEEP_DIVE.md](SECURITY_AUDIT_DEEP_DIVE.md)** - Package-by-package vulnerability scan and remediation plan
-
-### Technical Documentation
-- **[IMPROVEMENTS.md](IMPROVEMENTS.md)** - Detailed v2.0 improvements
-- **[IMPLEMENTATION_COMPLETE.md](IMPLEMENTATION_COMPLETE.md)** - Full implementation details
-- **[TEST_REPORT.md](TEST_REPORT.md)** - Testing results and status
-
-### Design & Architecture
-- **[PRD.md](PRD.md)** - Product requirements
-- **[DESIGN.md](DESIGN.md)** - Architecture design
-- **[TECH_STACK.md](TECH_STACK.md)** - Technology stack
-
----
-
-## 🏗️ Architecture
+## Project layout
 
 ```
-InWoice/
-├── backend/              # Node.js + Express API
-│   ├── routes/          # API endpoints
-│   │   ├── invoiceRoutes.js    # Invoice CRUD + duplicate/edit
-│   │   ├── customerRoutes.js   # CRM endpoints
-│   │   ├── exportRoutes.js     # CSV export
-│   │   └── ...
-│   ├── services/        # Business logic
-│   ├── utils/           # Utilities (auth, logger, validation)
-│   ├── templates/       # PDF templates
-│   └── logs/            # Application logs
-├── frontend/            # React 18 SPA
-│   ├── src/
-│   │   ├── pages/      # Page components
-│   │   │   ├── CustomerDetail.jsx   # Customer profile (NEW)
-│   │   │   ├── Customers.jsx        # Customer list with export
-│   │   │   └── ...
-│   │   ├── components/ # Reusable components
-│   │   └── apiConfig.js # Centralized API config
-└── local_ai/            # Python AI microservice (optional)
+backend/    Express API, Prisma schema + migrations, tests
+frontend/   React app (Vite), e2e smoke test
+scripts/    dev runner
+docs/       guides (current) and legacy/ (old versions)
+_old_v3_backup/, _old_v4_backup/   previous code, kept for reference; not used
 ```
-
-### Tech Stack
-
-**Frontend:**
-- React 18, React Router v7, Tailwind CSS
-- Axios, React-Toastify, Lucide Icons, Recharts
-
-**Backend:**
-- Node.js, Express.js, Puppeteer (PDF)
-- JWT, bcrypt, Helmet, Winston, Zod, json2csv
-
-**AI/ML:**
-- Ollama (local), Qwen-2.5 (local), Google Gemini (cloud)
-
-**Storage:**
-- JSON file (primary), Google Sheets (backup)
-
----
-
-## 📊 CRM Features
-
-### Customer Segmentation
-
-Customers are automatically categorized:
-
-| Segment | Criteria | Badge Color |
-|---------|----------|-------------|
-| **VIP** | Total revenue > $5,000 | Purple |
-| **Loyal** | More than 10 orders | Blue |
-| **Regular** | 2-10 orders, active | Green |
-| **New** | Only 1 order | Yellow |
-| **At Risk** | Last purchase > 90 days ago | Red |
-
-### Customer Metrics
-
-**Per-Customer:**
-- Total Orders (Paid + Pending)
-- Total Revenue & Pending Revenue
-- Average Order Value
-- First & Last Purchase Dates
-- Days Since Last Purchase
-
-**Platform-Wide:**
-- Total Customers
-- Total Revenue
-- Average Customer Value
-- Retention Rate
-- Conversion Rate
-- Average Days to Pay
-
----
-
-## 🔒 Security
-
-InWoice v2.1 implements **enterprise-grade security**:
-
-### Authentication
-- ✅ JWT tokens with configurable expiration
-- ✅ bcrypt password hashing (10 rounds)
-- ✅ Token verification on every request
-- ✅ Auto-refresh and session management
-
-### Protection
-- ✅ Rate limiting (5 login attempts per 15min, 100 API calls per 15min)
-- ✅ CORS restricted to specific origins
-- ✅ Helmet.js security headers
-- ✅ Input validation with Zod
-- ✅ SQL injection prevention
-- ✅ XSS protection in PDF generation
-
-### Best Practices
-- ✅ Environment-based configuration
-- ✅ No secrets in code
-- ✅ Comprehensive logging
-- ✅ Error handling without leaks
-- ✅ HTTPS ready (nginx config included)
-
-**[Security Audit Report →](TEST_REPORT.md#security-improvements-detail)**
-
----
-
-## 📊 Performance
-
-### Benchmarks (v2.1)
-
-| Operation | Time | Improvement |
-|-----------|------|-------------|
-| PDF Generation (cached) | ~10ms | 80% faster |
-| Login (JWT + bcrypt) | <100ms | Secure |
-| Get Invoices (paginated) | <200ms | Efficient |
-| Customer Analytics | <150ms | Optimized |
-| CSV Export | <500ms | Fast |
-| Health Check | <10ms | Instant |
-
-### Scalability
-- Current: 10,000+ invoices, 1,000+ customers, 50 concurrent users
-- Recommended: PostgreSQL for 100K+ invoices
-
----
-
-## 🧪 Testing
-
-### Automated Tests
-
-```bash
-# Backend comprehensive tests
-cd backend && node test-comprehensive.js
-
-# Backend integration tests
-cd backend && node test-integration.js
-
-# Frontend validation
-cd frontend && node test-validation.js
-```
-
-### Manual Testing
-
-Follow **[TESTING_GUIDE.md](TESTING_GUIDE.md)** for:
-- API endpoint tests (50+ curl commands)
-- Security tests (unauthorized access, CORS, rate limiting)
-- CRM feature tests (customer detail, segmentation, export)
-- Performance benchmarks
-- Browser compatibility
-- Mobile responsiveness
-
----
-
-## 🚀 Deployment
-
-### Docker (Recommended)
-
-```bash
-docker-compose up -d
-```
-
-### Manual Production Deployment
-
-Follow **[DEPLOYMENT.md](DEPLOYMENT.md)** for complete guide including:
-- Production checklist
-- Environment configuration
-- HTTPS/SSL setup with nginx
-- Automated backups
-- Monitoring & logging
-- Troubleshooting
-
----
-
-## 📝 API Documentation
-
-### CRM Endpoints
-
-**Customer Detail:**
-```bash
-curl -H "Authorization: Bearer <token>" \
-  http://localhost:5000/api/customers/customer@example.com
-```
-
-**Customer Analytics:**
-```bash
-curl -H "Authorization: Bearer <token>" \
-  http://localhost:5000/api/customers/analytics/summary
-```
-
-**Export to CSV:**
-```bash
-curl -H "Authorization: Bearer <token>" \
-  http://localhost:5000/api/export/invoices > invoices.csv
-```
-
-**Duplicate Invoice:**
-```bash
-curl -X POST -H "Authorization: Bearer <token>" \
-  http://localhost:5000/api/invoices/SNV-2024-ABC123/duplicate
-```
-
-**[Full API Documentation →](TESTING_GUIDE.md#4-api-endpoint-tests)**
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)
-5. Open Pull Request
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
----
-
-## 🆘 Support
-
-### Documentation
-- Check **[QUICKSTART.md](QUICKSTART.md)** for setup help
-- See **[TESTING_GUIDE.md](TESTING_GUIDE.md)** for testing issues
-- Read **[DEPLOYMENT.md](DEPLOYMENT.md)** for deployment problems
-
-### Troubleshooting
-
-**Common Issues:**
-
-1. **"Missing JWT_SECRET"**
-   - Add to backend/.env: `JWT_SECRET=<your-secret>`
-
-2. **CORS errors**
-   - Set FRONTEND_URL in backend/.env
-
-3. **Cannot connect to server**
-   - Check backend is running: `curl http://localhost:5000/health`
-
-4. **Token not working**
-   - Clear localStorage and login again
-
-5. **CSV export not working**
-   - Run: `cd backend && npm install json2csv`
-
-**Logs:** Check `backend/logs/error.log` for errors
-
----
-
-## 🙏 Acknowledgments
-
-Built with:
-- [React](https://reactjs.org/)
-- [Express.js](https://expressjs.com/)
-- [Puppeteer](https://pptr.dev/)
-- [Winston](https://github.com/winstonjs/winston)
-- [JWT](https://jwt.io/)
-- [Recharts](https://recharts.org/)
-- And many other amazing open-source projects
-
----
-
-## 📊 Project Status
-
-- ✅ **Version:** 2.1.0
-- ✅ **Status:** Production Ready
-- ✅ **Security:** Enterprise Grade
-- ✅ **Performance:** Optimized
-- ✅ **Documentation:** Comprehensive (60KB+)
-- ✅ **CRM:** Full-Featured
-- ✅ **Tests:** Validated
-
----
-
-<div align="center">
-
-**Built with ❤️ for small businesses and independent creators**
-
-[Report Bug](https://github.com/yourusername/InWoice/issues) • [Request Feature](https://github.com/yourusername/InWoice/issues)
-
-</div>
-
-
----
-
-## ✨ Features
-
-### Core Functionality
-- ✅ **Create & Manage Invoices** - Full CRUD with rich details
-- ✅ **AI-Powered Parsing** - Voice input to structured invoices
-- ✅ **PDF Generation** - Professional, branded PDF invoices
-- ✅ **Email Integration** - Send invoices via SMTP
-- ✅ **Payment Tracking** - Track pending/paid status
-- ✅ **Customer Management** - Automatic customer database
-- ✅ **Product Catalog** - Reusable product templates
-
-### Advanced Features
-- ✅ **Hybrid AI Support** - Local (Ollama, Python) + Cloud (Gemini)
-- ✅ **Google Sheets Sync** - Real-time cloud backup
-- ✅ **UPI QR Codes** - Automatic payment QR generation
-- ✅ **Offline-First** - Works without internet, syncs later
-- ✅ **WhatsApp Sharing** - One-click invoice sharing
-- ✅ **Analytics Dashboard** - Revenue insights and trends
-
-### v2.0 Security Features
-- 🔒 **JWT Authentication** - Token-based auth with expiration
-- 🔒 **Password Hashing** - bcrypt for secure storage
-- 🔒 **Rate Limiting** - Prevent brute-force attacks
-- 🔒 **CORS Protection** - Restricted origins
-- 🔒 **Security Headers** - Helmet.js protection
-- 🔒 **Input Validation** - Zod schema validation
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Node.js 16+ and npm
-- Git
-
-### 1. Clone & Install
-
-```bash
-# Clone repository
-git clone https://github.com/yourusername/InWoice.git
-cd InWoice
-
-# Install backend dependencies
-cd backend
-npm install
-
-# Install frontend dependencies
-cd ../frontend
-npm install
-```
-
-### 2. Configure Environment
-
-**Backend (.env):**
-```bash
-cd backend
-cp .env.example .env
-
-# Generate JWT secret
-openssl rand -base64 32
-
-# Edit .env and add:
-# JWT_SECRET=<paste-generated-secret>
-# ADMIN_PASSWORD=admin123  # Change this!
-# FRONTEND_URL=http://localhost:3000
-```
-
-**Frontend (.env):**
-```bash
-cd frontend
-echo "REACT_APP_API_URL=http://localhost:5000" > .env
-```
-
-### 3. Run Tests (Optional but Recommended)
-
-```bash
-# Backend integration tests
-cd backend
-node test-integration.js
-
-# Frontend validation
-cd ../frontend
-node test-validation.js
-```
-
-### 4. Start Services
-
-```bash
-# Backend (terminal 1)
-cd backend
-npm start
-
-# Frontend (terminal 2)
-cd frontend
-npm start
-```
-
-### 5. Access Application
-
-Open browser: **http://localhost:3000/login**
-
-**Default credentials:**
-- Password: `admin123` (⚠️ Change immediately!)
-
----
-
-## 📚 Documentation
-
-### Essential Guides
-- **[QUICKSTART.md](QUICKSTART.md)** - Fast 5-minute setup
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete production deployment guide
-- **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - Comprehensive testing procedures
-
-### Technical Documentation
-- **[IMPROVEMENTS.md](IMPROVEMENTS.md)** - Detailed v2.0 improvements
-- **[IMPLEMENTATION_COMPLETE.md](IMPLEMENTATION_COMPLETE.md)** - Full implementation details
-- **[TEST_REPORT.md](TEST_REPORT.md)** - Testing results and status
-
-### Design & Architecture
-- **[PRD.md](PRD.md)** - Product requirements
-- **[DESIGN.md](DESIGN.md)** - Architecture design
-- **[TECH_STACK.md](TECH_STACK.md)** - Technology stack
-
----
-
-## 🏗️ Architecture
-
-```
-InWoice/
-├── backend/              # Node.js + Express API
-│   ├── routes/          # API endpoints
-│   ├── services/        # Business logic
-│   ├── utils/           # Utilities (auth, logger, etc)
-│   ├── templates/       # PDF templates
-│   └── logs/            # Application logs
-├── frontend/            # React 18 SPA
-│   ├── src/
-│   │   ├── pages/      # Page components
-│   │   ├── components/ # Reusable components
-│   │   └── apiConfig.js # Centralized API config
-└── local_ai/            # Python AI microservice (optional)
-```
-
-### Tech Stack
-
-**Frontend:**
-- React 18, React Router v7, Tailwind CSS
-- Axios, React-Toastify, Lucide Icons, Recharts
-
-**Backend:**
-- Node.js, Express.js, Puppeteer (PDF)
-- JWT, bcrypt, Helmet, Winston, Zod
-
-**AI/ML:**
-- Ollama (local), Qwen-2.5 (local), Google Gemini (cloud)
-
-**Storage:**
-- JSON file (primary), Google Sheets (backup)
-
----
-
-## 🔒 Security
-
-InWoice v2.0 implements **enterprise-grade security**:
-
-### Authentication
-- ✅ JWT tokens with configurable expiration
-- ✅ bcrypt password hashing (10 rounds)
-- ✅ Token verification on every request
-- ✅ Auto-refresh and session management
-
-### Protection
-- ✅ Rate limiting (5 login attempts per 15min)
-- ✅ CORS restricted to specific origins
-- ✅ Helmet.js security headers
-- ✅ Input validation with Zod
-- ✅ SQL injection prevention
-- ✅ XSS protection in PDF generation
-
-### Best Practices
-- ✅ Environment-based configuration
-- ✅ No secrets in code
-- ✅ Comprehensive logging
-- ✅ Error handling without leaks
-- ✅ HTTPS ready (nginx config included)
-
-**[Security Audit Report →](TEST_REPORT.md#security-improvements-detail)**
-
----
-
-## 📊 Performance
-
-### Benchmarks (v2.0)
-
-| Operation | Time | Improvement |
-|-----------|------|-------------|
-| PDF Generation (cached) | ~10ms | 80% faster |
-| Login (JWT + bcrypt) | <100ms | Secure |
-| Get Invoices (paginated) | <200ms | Efficient |
-| Health Check | <10ms | Instant |
-
-### Scalability
-- Current: 10,000+ invoices, 50 concurrent users
-- Recommended: PostgreSQL for 100K+ invoices
-
----
-
-## 🧪 Testing
-
-### Automated Tests
-
-```bash
-# Backend integration tests
-cd backend && node test-integration.js
-
-# Frontend validation
-cd frontend && node test-validation.js
-```
-
-### Manual Testing
-
-Follow **[TESTING_GUIDE.md](TESTING_GUIDE.md)** for:
-- API endpoint tests (50+ curl commands)
-- Security tests (unauthorized access, CORS, rate limiting)
-- Performance benchmarks
-- Browser compatibility
-- Mobile responsiveness
-
----
-
-## 🚀 Deployment
-
-### Docker (Recommended)
-
-```bash
-docker-compose up -d
-```
-
-### Manual Production Deployment
-
-Follow **[DEPLOYMENT.md](DEPLOYMENT.md)** for complete guide including:
-- Production checklist
-- Environment configuration
-- HTTPS/SSL setup with nginx
-- Automated backups
-- Monitoring & logging
-- Troubleshooting
-
-### Quick Production Setup
-
-1. Generate secure secrets:
-   ```bash
-   openssl rand -base64 32  # JWT_SECRET
-   ```
-
-2. Update `.env`:
-   ```env
-   NODE_ENV=production
-   JWT_SECRET=<your-generated-secret>
-   ADMIN_PASSWORD=<strong-password>
-   FRONTEND_URL=https://yourdomain.com
-   ```
-
-3. Start with PM2:
-   ```bash
-   npm install -g pm2
-   pm2 start backend/server.js --name inwoice
-   pm2 save && pm2 startup
-   ```
-
----
-
-## 🛠️ Development
-
-### Prerequisites
-- Node.js 16+
-- npm or yarn
-
-### Setup Development Environment
-
-```bash
-# Install dependencies
-npm install
-
-# Backend with auto-reload
-cd backend && npm run dev
-
-# Frontend
-cd frontend && npm start
-```
-
-### Code Structure
-- Follow existing patterns
-- Use ESLint/Prettier for formatting
-- Write tests for new features
-- Update documentation
-
----
-
-## 📝 API Documentation
-
-### Authentication
-
-**POST /api/auth/login**
-```bash
-curl -X POST http://localhost:5000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"password":"admin123"}'
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "token": "eyJhbGc...",
-    "expiresIn": 86400
-  }
-}
-```
-
-### Invoices
-
-**GET /api/invoices** (Protected)
-```bash
-curl http://localhost:5000/api/invoices?page=1&limit=50 \
-  -H "Authorization: Bearer <token>"
-```
-
-**[Full API Documentation →](TESTING_GUIDE.md#4-api-endpoint-tests)**
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)
-5. Open Pull Request
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
----
-
-## 🆘 Support
-
-### Documentation
-- Check **[QUICKSTART.md](QUICKSTART.md)** for setup help
-- See **[TESTING_GUIDE.md](TESTING_GUIDE.md)** for testing issues
-- Read **[DEPLOYMENT.md](DEPLOYMENT.md)** for deployment problems
-
-### Troubleshooting
-
-**Common Issues:**
-
-1. **"Missing JWT_SECRET"**
-   - Add to backend/.env: `JWT_SECRET=<your-secret>`
-
-2. **CORS errors**
-   - Set FRONTEND_URL in backend/.env
-
-3. **Cannot connect to server**
-   - Check backend is running: `curl http://localhost:5000/health`
-
-4. **Token not working**
-   - Clear localStorage and login again
-
-**Logs:** Check `backend/logs/error.log` for errors
-
----
-
-## 🙏 Acknowledgments
-
-Built with:
-- [React](https://reactjs.org/)
-- [Express.js](https://expressjs.com/)
-- [Puppeteer](https://pptr.dev/)
-- [Winston](https://github.com/winstonjs/winston)
-- [JWT](https://jwt.io/)
-- And many other amazing open-source projects
-
----
-
-## 📊 Project Status
-
-- ✅ **Version:** 2.0.0
-- ✅ **Status:** Production Ready
-- ✅ **Security:** Enterprise Grade
-- ✅ **Performance:** Optimized
-- ✅ **Documentation:** Comprehensive
-- ✅ **Tests:** Validated
-
----
-
-<div align="center">
-
-**Built with ❤️ for small businesses and independent creators**
-
-[Report Bug](https://github.com/yourusername/InWoice/issues) • [Request Feature](https://github.com/yourusername/InWoice/issues)
-
-</div>
