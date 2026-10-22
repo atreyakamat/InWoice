@@ -7,59 +7,148 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------------------------------------------------------------
+// Identity & settings
+// ---------------------------------------------------------------
+
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      String   @default("ADMIN")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String          @id @default(uuid())
+  email          String          @unique
+  password       String
+  name           String
+  role           String          @default("ADMIN") // ADMIN, STAFF, SALES, STORES, ACCOUNTANT (see lib/permissions.ts)
+  isActive       Boolean         @default(true)
+  tokenVersion   Int             @default(0) // bumped to sign out every session (password change, disable)
+  totpSecret     String? // two-factor (TOTP) secret, base32; never sent to the browser
+  totpEnabled    Boolean         @default(false)
+  recoveryCodes  String? // JSON array of SHA-256 hashes of unused recovery codes
+  lastLoginAt    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  passwordResets PasswordReset[]
+  auditLogs      AuditLog[]
 }
 
 model BusinessSettings {
-  id              String   @id @default(uuid())
-  businessName    String
-  logoUrl         String?
-  address         String?
-  email           String?
-  phone           String?
-  website         String?
-  gstNumber       String?
-  upiId           String?
-  upiQrUrl        String?
-  bankName        String?
-  accountNumber   String?
-  ifscCode        String?
-  invoiceFooter   String?
-  termsConditions String?
-  thankYouMessage String?
-  smtpHost        String?
-  smtpPort        String?
-  smtpUsername    String?
-  smtpPassword    String?
-  googleSheetId   String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                   String    @id @default(uuid())
+  businessName         String
+  logoUrl              String?
+  address              String?
+  state                String? // Used for GST: same state => CGST+SGST, else IGST
+  email                String?
+  phone                String?
+  website              String?
+  gstNumber            String?
+  upiId                String?
+  upiQrUrl             String?
+  bankName             String?
+  accountNumber        String?
+  ifscCode             String?
+  currency             String    @default("INR")
+  currencySymbol       String    @default("₹")
+  defaultTaxRate       Float     @default(18)
+  invoicePrefix        String    @default("INV-")
+  nextInvoiceNumber    Int       @default(1)
+  creditNotePrefix     String    @default("CN-")
+  nextCreditNoteNumber Int       @default(1)
+  quotePrefix          String    @default("QT-")
+  nextQuoteNumber      Int       @default(1)
+  debitNotePrefix      String    @default("DN-")
+  nextDebitNoteNumber  Int       @default(1)
+  quoteValidityDays    Int       @default(15)
+  paymentTermsDays     Int       @default(15)
+  // Automatic payment reminders: days relative to the due date (negative = before it).
+  remindersEnabled     Boolean   @default(false)
+  reminderDays         String    @default("-1,3,7,15")
+  // Monthly statement emails to customers who owe money (sent on the 1st).
+  statementsEnabled    Boolean   @default(false)
+  // Monthly summary email to the owners (admins) on the 1st.
+  ownerDigestEnabled   Boolean   @default(false)
+  lastOwnerDigestAt    DateTime?
+  // Public web address used in emailed links (portal, password reset). Falls back to APP_URL.
+  appUrl               String?
+  // Nothing dated on or before this day can be created, changed or cancelled (e.g. after filing GST).
+  lockedUntil          DateTime?
+  // Off-site backups to S3-compatible storage (AWS S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO).
+  s3Endpoint           String?
+  s3Region             String?
+  s3Bucket             String?
+  s3Prefix             String?
+  s3AccessKey          String?
+  s3SecretKey          String?
+  offsiteLastAt        DateTime?
+  offsiteLastError     String?
+  invoiceFooter        String?
+  termsConditions      String?
+  thankYouMessage      String?
+  smtpHost             String?
+  smtpPort             String?
+  smtpUsername         String?
+  smtpPassword         String?
+  smtpFrom             String?
+  googleSheetId        String?
+  // AI configuration. Provider: NONE, ANTHROPIC, OLLAMA
+  aiProvider           String    @default("NONE")
+  aiModel              String?
+  aiApiKey             String?
+  ollamaUrl            String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 }
 
+// ---------------------------------------------------------------
+// CRM
+// ---------------------------------------------------------------
+
 model Customer {
-  id         String     @id @default(uuid())
-  name       String
-  email      String?
-  phone      String?
-  instagram  String?
-  notes      String?
-  segment    String?    @default("New")
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  invoices   Invoice[]
-  activities Activity[]
+  id              String             @id @default(uuid())
+  name            String
+  email           String?
+  phone           String?
+  instagram       String?
+  address         String?
+  city            String?
+  state           String?
+  gstin           String?
+  notes           String?
+  segment         String?            @default("New")
+  portalToken     String?            @unique // secret link for the customer portal; null = portal off
+  lastStatementAt DateTime? // last automatic monthly statement
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  invoices        Invoice[]
+  activities      Activity[]
+  creditNotes     CreditNote[]
+  quotes          Quote[]
+  recurring       RecurringInvoice[]
+
+  @@index([name])
+  @@index([email])
 }
+
+model Activity {
+  id            String    @id @default(uuid())
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  eventType     String
+  title         String
+  description   String?
+  referenceType String?
+  referenceId   String?
+  metadata      String?
+  createdAt     DateTime  @default(now())
+
+  @@index([customerId, createdAt])
+}
+
+// ---------------------------------------------------------------
+// Catalog
+// ---------------------------------------------------------------
 
 model Product {
   id                String             @id @default(uuid())
   name              String
+  sku               String?            @unique
   description       String?
   category          String?
   material          String?
@@ -68,9 +157,13 @@ model Product {
   shape             String?
   isWaterproof      Boolean            @default(false)
   price             Float
+  costPrice         Float              @default(0)
+  hsnCode           String?
+  taxRate           Float? // null => use business default
   stock             Int                @default(0)
+  lowStockThreshold Int                @default(5)
   imageUrl          String?
-  status            String             @default("ACTIVE")
+  status            String             @default("ACTIVE") // ACTIVE, ARCHIVED
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   packItems         PackItem[]
@@ -83,6 +176,8 @@ model Pack {
   name        String
   description String?
   price       Float
+  hsnCode     String?
+  taxRate     Float?
   imageUrl    String?
   status      String     @default("ACTIVE")
   createdAt   DateTime   @default(now())
@@ -101,38 +196,115 @@ model PackItem {
   @@unique([packId, productId])
 }
 
+// ---------------------------------------------------------------
+// Sales
+// ---------------------------------------------------------------
+
 model Invoice {
-  id            String        @id @default(uuid())
-  invoiceNumber String        @unique
-  customerId    String
-  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  date          DateTime      @default(now())
-  dueDate       DateTime?
-  subtotal      Float
-  taxAmount     Float         @default(0)
-  shippingCost  Float         @default(0)
-  discount      Float         @default(0)
-  grandTotal    Float
-  status        String        @default("DRAFT") // DRAFT, PENDING, PAID, OVERDUE, CANCELLED
-  notes         String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  items         InvoiceItem[]
-  payments      Payment[]
-  files         File[]
-  fulfillment   Fulfillment?
+  id             String            @id @default(uuid())
+  invoiceNumber  String            @unique
+  customerId     String
+  customer       Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  date           DateTime          @default(now())
+  dueDate        DateTime?
+  placeOfSupply  String?
+  subtotal       Float
+  discount       Float             @default(0)
+  taxAmount      Float             @default(0)
+  cgst           Float             @default(0)
+  sgst           Float             @default(0)
+  igst           Float             @default(0)
+  shippingCost   Float             @default(0)
+  grandTotal     Float
+  amountPaid     Float             @default(0)
+  amountCredited Float             @default(0) // sum of active credit notes
+  remindersSent  Int               @default(0) // reminder steps already sent
+  lastReminderAt DateTime?
+  status         String            @default("DRAFT") // DRAFT, PENDING, PARTIAL, PAID, CANCELLED (OVERDUE is derived)
+  stockDeducted  Boolean           @default(false)
+  stockLog       String? // JSON record of what was deducted, so cancellation can reverse it exactly
+  issuedAt       DateTime?
+  notes          String?
+  recurringId    String?
+  recurring      RecurringInvoice? @relation(fields: [recurringId], references: [id], onDelete: SetNull)
+  quote          Quote?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  items          InvoiceItem[]
+  payments       Payment[]
+  files          File[]
+  fulfillment    Fulfillment?
+  creditNotes    CreditNote[]
+
+  @@index([customerId])
+  @@index([status, date])
+  @@index([date])
 }
 
 model InvoiceItem {
   id        String  @id @default(uuid())
   invoiceId String
   invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  type      String // PRODUCT or PACK
-  itemId    String // ID of Product or Pack
+  type      String // PRODUCT, PACK, CUSTOM
+  itemId    String? // ID of Product or Pack (null for CUSTOM lines)
   name      String
+  hsnCode   String?
   quantity  Int
   unitPrice Float
-  total     Float
+  taxRate   Float   @default(0)
+  taxAmount Float   @default(0)
+  total     Float // quantity * unitPrice (pre-tax)
+
+  @@index([invoiceId])
+  @@index([itemId])
+}
+
+/// Credit note against an issued invoice (sales return, post-sale discount, correction).
+/// Reduces the invoice balance; any part the customer had already paid is a refund due.
+model CreditNote {
+  id               String           @id @default(uuid())
+  creditNoteNumber String           @unique
+  invoiceId        String
+  invoice          Invoice          @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  customerId       String
+  customer         Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  date             DateTime         @default(now())
+  reason           String // RETURN, DISCOUNT, DEFICIENCY, CORRECTION, OTHER
+  taxableValue     Float
+  taxAmount        Float            @default(0)
+  cgst             Float            @default(0)
+  sgst             Float            @default(0)
+  igst             Float            @default(0)
+  shippingAmount   Float            @default(0)
+  total            Float
+  refundAmount     Float            @default(0) // part of the total the customer had already paid
+  restock          Boolean          @default(false)
+  stockLog         String? // JSON of products returned to stock, so cancelling can reverse it
+  status           String           @default("ISSUED") // ISSUED, CANCELLED
+  notes            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  items            CreditNoteItem[]
+
+  @@index([invoiceId])
+  @@index([customerId])
+  @@index([date])
+}
+
+model CreditNoteItem {
+  id            String     @id @default(uuid())
+  creditNoteId  String
+  creditNote    CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  invoiceItemId String
+  name          String
+  hsnCode       String?
+  quantity      Int        @default(0) // 0 for value-only credits (e.g. post-sale discount)
+  taxableValue  Float
+  taxRate       Float      @default(0)
+  taxAmount     Float      @default(0)
+
+  @@index([creditNoteId])
+  @@index([invoiceItemId])
 }
 
 model Payment {
@@ -140,11 +312,16 @@ model Payment {
   invoiceId     String
   invoice       Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   amount        Float
+  tdsAmount     Float    @default(0) // part of `amount` the customer deducted as TDS (not received in cash)
   paymentDate   DateTime @default(now())
-  paymentMethod String // UPI, BANK_TRANSFER, CASH
+  paymentMethod String // UPI, BANK_TRANSFER, CASH, CARD, OTHER
   referenceId   String?
   notes         String?
+  reconciled    Boolean  @default(false) // matched to a bank statement line
   createdAt     DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([paymentDate])
 }
 
 model File {
@@ -154,44 +331,12 @@ model File {
   mimeType      String
   size          Int
   path          String
-  referenceType String? // INVOICE, REPORT, etc.
+  referenceType String?
   referenceId   String?
   invoiceId     String?
   invoice       Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-}
-
-model Activity {
-  id            String    @id @default(uuid())
-  customerId    String?
-  customer      Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  eventType     String
-  title         String
-  description   String?
-  referenceType String?
-  referenceId   String?
-  metadata      String?
-  createdAt     DateTime  @default(now())
-}
-
-model AnalyticsSnapshot {
-  id              String   @id @default(uuid())
-  date            DateTime @default(now())
-  totalRevenue    Float    @default(0)
-  totalInvoices   Int      @default(0)
-  activeCustomers Int      @default(0)
-  data            String // JSON string of snapshot data
-  createdAt       DateTime @default(now())
-}
-
-model SyncLog {
-  id            String   @id @default(uuid())
-  target        String // GOOGLE_SHEETS
-  status        String // SUCCESS, FAILED
-  recordsSynced Int      @default(0)
-  errorMessage  String?
-  createdAt     DateTime @default(now())
 }
 
 model EmailLog {
@@ -205,11 +350,32 @@ model EmailLog {
   createdAt     DateTime @default(now())
 }
 
-// V5 Executive Intelligence Models
+model SyncLog {
+  id            String   @id @default(uuid())
+  target        String
+  status        String
+  recordsSynced Int      @default(0)
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+}
+
+model AnalyticsSnapshot {
+  id              String   @id @default(uuid())
+  date            DateTime @default(now())
+  totalRevenue    Float    @default(0)
+  totalInvoices   Int      @default(0)
+  activeCustomers Int      @default(0)
+  data            String
+  createdAt       DateTime @default(now())
+}
+
+// ---------------------------------------------------------------
+// Executive intelligence
+// ---------------------------------------------------------------
 
 model BusinessHealthScore {
   id               String   @id @default(uuid())
-  overallScore     Float // 0-100
+  overallScore     Float
   revenueHealth    Float
   profitHealth     Float
   inventoryHealth  Float
@@ -227,7 +393,7 @@ model BusinessOpportunity {
   category      String // SALES, INVENTORY, MARKETING, PRODUCT, RETENTION
   impact        String // HIGH, MEDIUM, LOW
   status        String   @default("PENDING") // PENDING, APPROVED, REJECTED, SNOOZED, EXECUTED
-  referenceType String? // CUSTOMER, PRODUCT, PACK, INVENTORY
+  referenceType String?
   referenceId   String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -248,11 +414,28 @@ model BusinessRisk {
 
 model ExecutiveBriefing {
   id        String   @id @default(uuid())
-  type      String // DAILY, WEEKLY, MONTHLY, QUARTERLY
-  content   String // The full AI-generated briefing markdown
-  metrics   String? // JSON snapshot of metrics at time of briefing
+  type      String // DAILY, WEEKLY
+  content   String
+  source    String   @default("RULES") // RULES, ANTHROPIC, OLLAMA
+  metrics   String?
   createdAt DateTime @default(now())
 }
+
+model Forecast {
+  id            String   @id @default(uuid())
+  type          String // REVENUE, ORDERS
+  timeframe     String // NEXT_30_DAYS
+  forecastValue Float
+  actualValue   Float?
+  confidence    Float
+  logic         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------
+// Operations / ERP
+// ---------------------------------------------------------------
 
 model Supplier {
   id             String          @id @default(uuid())
@@ -261,37 +444,42 @@ model Supplier {
   email          String?
   address        String?
   gst            String?
+  state          String? // GST state; with the GSTIN it decides IGST vs CGST+SGST on bills
   paymentTerms   String?
-  leadTime       Int? // In days
+  leadTime       Int?
   notes          String?
-  status         String          @default("ACTIVE")
+  status         String          @default("ACTIVE") // ACTIVE, INACTIVE
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   inventoryItems InventoryItem[]
   purchaseOrders PurchaseOrder[]
+  bills          Bill[]
+  debitNotes     DebitNote[]
 }
 
 model InventoryItem {
   id               String              @id @default(uuid())
   name             String
   sku              String?             @unique
-  category         String // Raw Material, Packaging, Finished Product
-  unit             String // Roll, Sheet, Unit
+  category         String // RAW_MATERIAL, PACKAGING, CONSUMABLE
+  unit             String
   currentStock     Float               @default(0)
   minimumStock     Float               @default(0)
   reorderLevel     Float               @default(0)
   costPerUnit      Float               @default(0)
   supplierId       String?
-  supplier         Supplier?           @relation(fields: [supplierId], references: [id])
+  supplier         Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   location         String?
   notes            String?
+  isActive         Boolean             @default(true)
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   poItems          PurchaseOrderItem[]
   bomItems         BOMItem[]
   productionUsages ProductionUsage[]
   stockMovements   StockMovement[]
-  EventInventory   EventInventory[]
+  eventInventory   EventInventory[]
+  billItems        BillItem[]
 }
 
 model PurchaseOrder {
@@ -301,10 +489,12 @@ model PurchaseOrder {
   supplier    Supplier            @relation(fields: [supplierId], references: [id])
   status      String              @default("DRAFT") // DRAFT, ORDERED, PARTIAL, RECEIVED, CANCELLED
   totalAmount Float               @default(0)
+  expectedAt  DateTime?
   notes       String?
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
   items       PurchaseOrderItem[]
+  bills       Bill[]
 }
 
 model PurchaseOrderItem {
@@ -340,7 +530,7 @@ model BOMItem {
 model ProductionBatch {
   id          String             @id @default(uuid())
   batchNumber String             @unique
-  status      String             @default("PLANNED") // PLANNED, IN_PROGRESS, COMPLETED, CANCELLED
+  status      String             @default("PLANNED") // PLANNED, COMPLETED, CANCELLED
   startDate   DateTime?
   endDate     DateTime?
   notes       String?
@@ -371,19 +561,22 @@ model ProductionUsage {
 model StockMovement {
   id              String        @id @default(uuid())
   inventoryItemId String
-  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
-  type            String // PURCHASE, PRODUCTION, SALE, ADJUSTMENT, RETURN, DAMAGE, TRANSFER
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  type            String // PURCHASE, PRODUCTION, SALE, ADJUSTMENT, RETURN, DAMAGE, EVENT
   quantity        Float // Positive or negative
-  referenceType   String? // INVOICE, PO, BATCH
+  referenceType   String?
   referenceId     String?
   notes           String?
   createdAt       DateTime      @default(now())
+
+  @@index([inventoryItemId, createdAt])
+  @@index([createdAt])
 }
 
 model Fulfillment {
   id                String           @id @default(uuid())
   invoiceId         String           @unique
-  invoice           Invoice          @relation(fields: [invoiceId], references: [id])
+  invoice           Invoice          @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   status            String           @default("PENDING") // PENDING, PACKING, PACKED, SHIPPED, DELIVERED, RETURNED, CANCELLED
   trackingNumber    String?
   courier           String?
@@ -394,6 +587,8 @@ model Fulfillment {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   shipmentRecords   ShipmentRecord[]
+
+  @@index([status])
 }
 
 model ShipmentRecord {
@@ -413,6 +608,7 @@ model Event {
   startDate DateTime?
   endDate   DateTime?
   status    String           @default("PLANNED") // PLANNED, ACTIVE, COMPLETED, CANCELLED
+  notes     String?
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
   inventory EventInventory[]
@@ -429,4 +625,321 @@ model EventInventory {
   quantityReturned  Float         @default(0)
 
   @@unique([eventId, inventoryItemId])
+}
+
+// ---------------------------------------------------------------
+// Money out: supplier bills, supplier payments, expenses
+// ---------------------------------------------------------------
+
+/// A purchase invoice received from a supplier, paid later through BillPayment.
+model Bill {
+  id              String         @id @default(uuid())
+  billNumber      String // the supplier's own invoice number
+  supplierId      String
+  supplier        Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  date            DateTime       @default(now())
+  dueDate         DateTime?
+  subtotal        Float
+  discount        Float          @default(0)
+  taxAmount       Float          @default(0)
+  cgst            Float          @default(0)
+  sgst            Float          @default(0)
+  igst            Float          @default(0)
+  shippingCost    Float          @default(0)
+  grandTotal      Float
+  amountPaid      Float          @default(0)
+  amountDebited   Float          @default(0) // sum of active debit notes (purchase returns)
+  itcEligible     Boolean        @default(true) // GST on this bill can be claimed as input tax credit
+  addToStock      Boolean        @default(false) // material lines were added to stock (reversed on cancel)
+  status          String         @default("PENDING") // PENDING, PARTIAL, PAID, CANCELLED (OVERDUE is derived)
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  items           BillItem[]
+  payments        BillPayment[]
+  debitNotes      DebitNote[]
+
+  @@unique([supplierId, billNumber])
+  @@index([status, date])
+  @@index([date])
+  @@index([purchaseOrderId])
+}
+
+model BillItem {
+  id              String          @id @default(uuid())
+  billId          String
+  bill            Bill            @relation(fields: [billId], references: [id], onDelete: Cascade)
+  inventoryItemId String?
+  inventoryItem   InventoryItem?  @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  description     String
+  category        String          @default("Purchases") // heading in the profit & loss report
+  hsnCode         String?
+  quantity        Float
+  unitPrice       Float
+  taxRate         Float           @default(0)
+  taxAmount       Float           @default(0)
+  total           Float // quantity * unitPrice (pre-tax, before the bill discount)
+  debitNoteItems  DebitNoteItem[]
+
+  @@index([billId])
+  @@index([inventoryItemId])
+}
+
+model BillPayment {
+  id            String   @id @default(uuid())
+  billId        String
+  bill          Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
+  amount        Float
+  tdsAmount     Float    @default(0) // part of `amount` you deducted as TDS and owe the government
+  tdsSection    String? // e.g. 194C, 194J
+  paymentDate   DateTime @default(now())
+  paymentMethod String // UPI, BANK_TRANSFER, CASH, CARD, CHEQUE, OTHER
+  referenceId   String?
+  notes         String?
+  reconciled    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([billId])
+  @@index([paymentDate])
+}
+
+/// Money spent and paid on the spot (rent, salaries, electricity...). Anything paid later is a Bill.
+model Expense {
+  id            String   @id @default(uuid())
+  date          DateTime @default(now())
+  category      String
+  description   String
+  vendor        String?
+  vendorGstin   String?
+  amount        Float // taxable value
+  taxRate       Float    @default(0)
+  taxAmount     Float    @default(0)
+  cgst          Float    @default(0)
+  sgst          Float    @default(0)
+  igst          Float    @default(0)
+  total         Float
+  itcEligible   Boolean  @default(false)
+  paymentMethod String   @default("CASH")
+  referenceId   String?
+  notes         String?
+  reconciled    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([date])
+  @@index([category])
+}
+
+// ---------------------------------------------------------------
+// Accounts & sales pipeline (v3.5)
+// ---------------------------------------------------------------
+
+/// One-time password reset link. Only a SHA-256 hash of the token is stored.
+model PasswordReset {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+/// A quotation / estimate. Becomes an invoice when the customer accepts.
+model Quote {
+  id            String      @id @default(uuid())
+  quoteNumber   String      @unique
+  customerId    String
+  customer      Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  date          DateTime    @default(now())
+  validUntil    DateTime?
+  placeOfSupply String?
+  subtotal      Float
+  discount      Float       @default(0)
+  taxAmount     Float       @default(0)
+  cgst          Float       @default(0)
+  sgst          Float       @default(0)
+  igst          Float       @default(0)
+  shippingCost  Float       @default(0)
+  grandTotal    Float
+  status        String      @default("DRAFT") // DRAFT, SENT, ACCEPTED, DECLINED, CONVERTED (EXPIRED is derived)
+  notes         String?
+  sentAt        DateTime?
+  respondedAt   DateTime? // when the customer accepted or declined
+  invoiceId     String?     @unique
+  invoice       Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  items         QuoteItem[]
+
+  @@index([customerId])
+  @@index([status, date])
+}
+
+model QuoteItem {
+  id        String  @id @default(uuid())
+  quoteId   String
+  quote     Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  type      String // PRODUCT, PACK, CUSTOM
+  itemId    String?
+  name      String
+  hsnCode   String?
+  quantity  Int
+  unitPrice Float
+  taxRate   Float   @default(0)
+  taxAmount Float   @default(0)
+  total     Float
+
+  @@index([quoteId])
+}
+
+/// A schedule that creates (and optionally emails) the same invoice every period.
+model RecurringInvoice {
+  id               String                 @id @default(uuid())
+  name             String
+  customerId       String
+  customer         Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  frequency        String // WEEKLY, MONTHLY, QUARTERLY, YEARLY
+  interval         Int                    @default(1) // every N periods
+  startDate        DateTime
+  endDate          DateTime?
+  nextIndex        Int                    @default(0) // which occurrence (from startDate) runs next
+  nextRunDate      DateTime
+  paymentTermsDays Int? // null = business default
+  autoIssue        Boolean                @default(true)
+  autoEmail        Boolean                @default(false)
+  status           String                 @default("ACTIVE") // ACTIVE, PAUSED, ENDED
+  placeOfSupply    String?
+  discount         Float                  @default(0)
+  shippingCost     Float                  @default(0)
+  notes            String?
+  runCount         Int                    @default(0)
+  lastRunAt        DateTime?
+  lastError        String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  items            RecurringInvoiceItem[]
+  invoices         Invoice[]
+
+  @@index([status, nextRunDate])
+  @@index([customerId])
+}
+
+model RecurringInvoiceItem {
+  id          String           @id @default(uuid())
+  recurringId String
+  recurring   RecurringInvoice @relation(fields: [recurringId], references: [id], onDelete: Cascade)
+  type        String // PRODUCT, PACK, CUSTOM
+  itemId      String?
+  name        String?
+  hsnCode     String?
+  quantity    Int
+  unitPrice   Float? // null = current catalog price at the time of each run
+  taxRate     Float?
+  sortOrder   Int              @default(0)
+
+  @@index([recurringId])
+}
+
+/// Who did what, when. Written automatically for every successful change made through the API.
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName  String? // kept even if the user is deleted
+  action    String // e.g. CREATE, UPDATE, DELETE, CANCEL, PAYMENT, LOGIN, LOGIN_FAILED
+  entity    String // e.g. invoice, quote, bill, settings, auth
+  entityId  String?
+  label     String? // human-readable reference, e.g. INV-0042
+  method    String?
+  path      String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entity, entityId])
+  @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------
+// Accounting depth (v3.8)
+// ---------------------------------------------------------------
+
+/// Debit note to a supplier: goods returned or a price reduced after the bill. Reduces
+/// what you owe and the GST input credit; anything already paid becomes a refund due.
+model DebitNote {
+  id              String          @id @default(uuid())
+  debitNoteNumber String          @unique
+  billId          String
+  bill            Bill            @relation(fields: [billId], references: [id], onDelete: Restrict)
+  supplierId      String
+  supplier        Supplier        @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  date            DateTime        @default(now())
+  reason          String // RETURN, DISCOUNT, DEFICIENCY, CORRECTION, OTHER
+  taxableValue    Float
+  taxAmount       Float           @default(0)
+  cgst            Float           @default(0)
+  sgst            Float           @default(0)
+  igst            Float           @default(0)
+  total           Float
+  refundAmount    Float           @default(0) // part of the total you had already paid
+  restock         Boolean         @default(false) // returned materials were taken out of stock
+  status          String          @default("ISSUED") // ISSUED, CANCELLED
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  items           DebitNoteItem[]
+
+  @@index([billId])
+  @@index([date])
+}
+
+model DebitNoteItem {
+  id           String    @id @default(uuid())
+  debitNoteId  String
+  debitNote    DebitNote @relation(fields: [debitNoteId], references: [id], onDelete: Cascade)
+  billItemId   String
+  billItem     BillItem  @relation(fields: [billItemId], references: [id], onDelete: Restrict)
+  description  String
+  quantity     Float     @default(0)
+  taxableValue Float
+  taxRate      Float     @default(0)
+  taxAmount    Float     @default(0)
+
+  @@index([debitNoteId])
+}
+
+/// Value of stock on a day (materials at cost + finished goods at cost), for the P&L.
+model StockSnapshot {
+  id             String   @id @default(uuid())
+  date           DateTime @unique // start of the day the value applies to
+  materialsValue Float
+  productsValue  Float
+  total          Float
+  createdAt      DateTime @default(now())
+}
+
+/// One line from an imported bank statement, and what it was matched to.
+model BankTransaction {
+  id          String    @id @default(uuid())
+  account     String    @default("Main")
+  date        DateTime
+  description String
+  reference   String?
+  amount      Float // money in is positive, money out negative
+  balance     Float?
+  hash        String    @unique // stops the same line being imported twice
+  status      String    @default("UNMATCHED") // UNMATCHED, MATCHED, IGNORED
+  matchType   String? // PAYMENT, BILL_PAYMENT, EXPENSE
+  matchId     String?
+  importBatch String?
+  createdAt   DateTime  @default(now())
+  matchedAt   DateTime?
+
+  @@index([status, date])
+  @@index([date])
 }

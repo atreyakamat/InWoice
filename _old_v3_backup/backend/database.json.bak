@@ -1,0 +1,30 @@
+{
+  "invoices": [
+    {
+      "date": "2026-03-28",
+      "paymentStatus": "Paid",
+      "paymentMethod": "UPI",
+      "customerName": "Test User",
+      "customerEmail": "test@example.com",
+      "discount": 0,
+      "shipping": 0,
+      "tax": 0,
+      "itemsJSON": "[{\"name\":\"Test Sticker Pack\",\"quantity\":2,\"price\":15.99,\"total\":31.98}]",
+      "subtotal": 31.98,
+      "grandTotal": 31.98,
+      "invoiceID": "SNV-2026-GPLWYE"
+    }
+  ],
+  "customers": [
+    {
+      "name": "Test User",
+      "email": "test@example.com",
+      "phone": "",
+      "instagram": "",
+      "totalPurchases": 31.98,
+      "lastPurchaseDate": "2026-03-28"
+    }
+  ],
+  "settings": {},
+  "products": []
+}

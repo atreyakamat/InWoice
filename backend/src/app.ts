@@ -1,54 +1,122 @@
-import express, { Request, Response, NextFunction } from 'express';
+import fs from 'fs';
+import path from 'path';
+import express, { type Request, type Response } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import helmet from 'helmet';
+import { config } from './lib/config';
+import prisma from './lib/prisma';
+import { errorHandler, HttpError } from './lib/errors';
 import authRoutes from './routes/auth.routes';
 import settingsRoutes from './routes/settings.routes';
 import customerRoutes from './routes/customers.routes';
-import productRoutes from './routes/products.routes';
-import packRoutes from './routes/packs.routes';
-import inventoryRoutes from './routes/inventory.routes';
-import supplierRoutes from './routes/suppliers.routes';
-import productionRoutes from './routes/production.routes';
-import bomRoutes from './routes/bom.routes';
 import invoiceRoutes from './routes/invoices.routes';
-import aiRoutes from './routes/ai.routes';
-import executiveRoutes from './routes/executive.routes';
-import purchaseOrderRoutes from './routes/purchase-orders.routes';
-import fulfillmentRoutes from './routes/fulfillment.routes';
+import creditNoteRoutes from './routes/creditnotes.routes';
+import reportRoutes from './routes/reports.routes';
+import backupRoutes from './routes/backups.routes';
+import billRoutes from './routes/bills.routes';
+import expenseRoutes from './routes/expenses.routes';
+import quoteRoutes from './routes/quotes.routes';
+import recurringRoutes from './routes/recurring.routes';
+import portalRoutes from './routes/portal.routes';
+import auditRoutes from './routes/audit.routes';
+import platformRoutes from './routes/platform.routes';
+import bankRoutes from './routes/bank.routes';
+import actionsRoutes from './routes/actions.routes';
+import { tenantResolver } from './middlewares/tenant';
+import { auditTrail } from './services/audit.service';
+import { packsRouter, productsRouter } from './routes/catalog.routes';
+import { inventoryRouter, stockMovementsRouter } from './routes/inventory.routes';
+import { purchaseOrdersRouter, suppliersRouter } from './routes/procurement.routes';
+import { bomRouter, productionRouter } from './routes/production.routes';
+import { eventsRouter, fulfillmentRouter } from './routes/fulfillment-events.routes';
+import { dashboardRouter, executiveRouter, exportRouter } from './routes/insights.routes';
+import { alertState } from './lib/alerts';
 
-dotenv.config();
+const APP_VERSION: string = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')).version;
+  } catch {
+    return 'unknown';
+  }
+})();
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.disable('x-powered-by');
+app.set('trust proxy', 1); // correct client IPs behind nginx/Caddy for rate limiting
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        connectSrc: ["'self'"],
+        frameSrc: ["'self'", 'blob:'],
+        objectSrc: ["'self'", 'blob:'],
+        // Off so the app also works over plain HTTP on a LAN (e.g. http://192.168.1.10:5000).
+        upgradeInsecureRequests: null,
+      },
+    },
+  }),
+);
+app.use(cors(config.corsOrigins.length ? { origin: config.corsOrigins } : { origin: config.isProd ? false : true }));
+app.use(express.json({ limit: '2mb' }));
 
-// Routes
+app.get('/health', async (_req: Request, res: Response) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok', database: 'ok', time: new Date().toISOString(), version: APP_VERSION, uptimeSeconds: Math.round(process.uptime()), memoryMb: Math.round(process.memoryUsage().rss / 1048576), alerts: alertState() });
+  } catch {
+    res.status(503).json({ status: 'degraded', database: 'unreachable' });
+  }
+});
+
+app.use('/api', tenantResolver);
+app.use('/api', auditTrail);
+app.use('/api/platform', platformRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/dashboard', dashboardRouter);
+app.use('/api/executive', executiveRouter);
+app.use('/api/export', exportRouter);
 app.use('/api/customers', customerRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/packs', packRoutes);
-app.use('/api/inventory', inventoryRoutes);
-app.use('/api/suppliers', supplierRoutes);
-app.use('/api/production', productionRoutes);
-app.use('/api/bom', bomRoutes);
 app.use('/api/invoices', invoiceRoutes);
-app.use('/api/ai', aiRoutes);
-app.use('/api/executive', executiveRoutes);
-app.use('/api/purchase-orders', purchaseOrderRoutes);
-app.use('/api/fulfillments', fulfillmentRoutes);
+app.use('/api/credit-notes', creditNoteRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/backups', backupRoutes);
+app.use('/api/bills', billRoutes);
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/quotes', quoteRoutes);
+app.use('/api/recurring', recurringRoutes);
+app.use('/api/portal', portalRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/bank', bankRoutes);
+app.use('/api/actions', actionsRoutes);
+app.use('/api/products', productsRouter);
+app.use('/api/packs', packsRouter);
+app.use('/api/inventory', inventoryRouter);
+app.use('/api/stock-movements', stockMovementsRouter);
+app.use('/api/suppliers', suppliersRouter);
+app.use('/api/purchase-orders', purchaseOrdersRouter);
+app.use('/api/bom', bomRouter);
+app.use('/api/production', productionRouter);
+app.use('/api/fulfillments', fulfillmentRouter);
+app.use('/api/events', eventsRouter);
 
-// Basic health check
-app.get('/health', (req: Request, res: Response) => {
-  res.status(200).json({ status: 'OK', timestamp: new Date() });
-});
+app.use('/api', (_req, _res, next) => next(new HttpError(404, 'API route not found')));
 
-// Error handling middleware
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error(err.stack);
-  res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
-});
+// In production the backend also serves the built frontend: one process, one port.
+const frontendDist = path.resolve(__dirname, '../../frontend/dist');
+if (fs.existsSync(path.join(frontendDist, 'index.html'))) {
+  app.use(express.static(frontendDist, { maxAge: '7d', index: false }));
+  app.get(/^\/(?!api\/).*/, (_req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+}
+
+app.use(errorHandler);
 
 export default app;

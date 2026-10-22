@@ -1,477 +1,280 @@
-# InWoice Deployment Guide
+# Deployment Guide
 
-## 🚀 Production Deployment Checklist
+InWoice runs as **one Node.js process** that serves both the API and the web app, plus a
+PostgreSQL database. It was designed for old or small machines.
 
-### Firebase Mode
+| Measured on the dev machine | Value |
+|---|---|
+| API process memory at idle | ~86 MB |
+| First page load, gzipped JS | ~110 KB (other pages load on demand) |
+| PDF generation | pure JavaScript, no headless browser |
+| Background jobs | in-process (no cron, no queue, no Redis) |
 
-InWoice supports a server-side Firebase backend. If `backend/firebase-credentials.json` exists, the app uses Firebase Admin instead of the local SQLite service layer.
+**Minimum server:** 1 CPU core and 1 GB RAM (2 GB is comfortable), with any x86-64 or ARM64
+Linux. A 10-year-old desktop is plenty. Local AI is the only heavy option (see
+[AI_GUIDE.md](AI_GUIDE.md)); Claude via API key adds no load to your server.
 
-1. Create a Firebase project.
-2. Enable Firestore in the project.
-3. Create a service-account key and save it as `backend/firebase-credentials.json`.
-4. Keep `backend/firebase-credentials.json` out of git. The repo already ignores `*.json` service-account files.
-5. Restart the backend and verify the startup log says `Using Firebase Admin for database operations.`
-6. Run the migration script from the repo root with your source data ready:
+---
+
+## Option A: Ubuntu/Debian server (recommended)
+
+### 1. Install Node.js and PostgreSQL
 
 ```bash
-node migrate_to_firebase.js
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs postgresql git
 ```
 
-The Firebase service layer stores data in these collections:
-- `settings`
-- `products`
-- `invoices`
-- `customers`
-- `accounts`
-- `journal_entries`
-- `bank_transactions`
-- `tasks`
-- `emails`
-- `marketing_posts`
+### 2. Create the database
 
-Recommended production additions:
-- Firestore indexes for `invoices.date`, `customers.email`, `journal_entries.date`, and `bank_transactions.date`.
-- A secured backup/export routine even though Firebase provides managed redundancy.
-- A locked-down admin-only deployment path because the Firebase Admin SDK bypasses client-side Firestore rules.
-
-### 1. Security Configuration
-
-#### ✅ **Change Default Password**
 ```bash
-# Generate a secure password hash
-curl -X POST http://localhost:5000/api/auth/hash-password \
-  -H "Content-Type: application/json" \
-  -d '{"password":"your-strong-password-here"}'
-
-# Add to .env
-ADMIN_PASSWORD_HASH=$2a$10$... # Use the hash from above
-# Remove or comment out ADMIN_PASSWORD if using hash
+sudo -u postgres psql -c "CREATE ROLE inwoice LOGIN PASSWORD 'LONG-RANDOM-PASSWORD';"
+sudo -u postgres psql -c "CREATE DATABASE inwoice OWNER inwoice;"
 ```
 
-#### ✅ **Generate JWT Secret**
+**Low-RAM tuning.** For a 1–2 GB server, add this to `/etc/postgresql/*/main/postgresql.conf`,
+then run `sudo systemctl restart postgresql`:
+
+```ini
+shared_buffers = 128MB
+work_mem = 4MB
+max_connections = 30
+effective_cache_size = 512MB
+```
+
+### 3. Install the app
+
 ```bash
-# Linux/Mac
-openssl rand -base64 32
-
-# Windows PowerShell
-$bytes = New-Object byte[] 32
-[Security.Cryptography.RNGCryptoServiceProvider]::Create().GetBytes($bytes)
-[Convert]::ToBase64String($bytes)
+sudo useradd -r -m -d /opt/inwoice inwoice
+sudo -u inwoice git clone <your-repo-url> /opt/inwoice/app
+cd /opt/inwoice/app
+sudo -u inwoice cp backend/.env.example backend/.env
+sudo -u inwoice nano backend/.env
 ```
 
-Add to `.env`:
-```
-JWT_SECRET=<generated-secret-here>
-```
+Set these values in `backend/.env`:
 
-#### ✅ **Configure CORS**
-Set your production frontend URL:
-```
-FRONTEND_URL=https://yourdomain.com
-```
-
-#### ✅ **Set NODE_ENV**
-```
+```ini
 NODE_ENV=production
+DATABASE_URL="postgresql://inwoice:LONG-RANDOM-PASSWORD@127.0.0.1:5432/inwoice?schema=public&connection_limit=5"
+JWT_SECRET=<node -e "console.log(require('crypto').randomBytes(48).toString('hex'))">
+CORS_ORIGIN=
 ```
+
+Then install and build:
+
+```bash
+sudo -u inwoice npm run setup
+sudo -u inwoice npm run build
+```
+
+Leave `TEST_DATABASE_URL` empty in production. Tests belong on a dev machine.
+
+### 4. Run as a service (systemd)
+
+Create `/etc/systemd/system/inwoice.service`:
+
+```ini
+[Unit]
+Description=InWoice
+After=network.target postgresql.service
+
+[Service]
+User=inwoice
+WorkingDirectory=/opt/inwoice/app/backend
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+# Report months, reminder days and backup names follow this time zone
+Environment=TZ=Asia/Kolkata
+# Keep memory predictable on small machines
+Environment=NODE_OPTIONS=--max-old-space-size=256
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and check it:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now inwoice
+curl http://localhost:5000/health    # {"status":"ok","database":"ok",...}
+```
+
+### 5. HTTPS with Caddy
+
+Point your domain's DNS at the server, then:
+
+```bash
+sudo apt-get install -y caddy
+echo 'invoice.yourbusiness.in {
+  reverse_proxy 127.0.0.1:5000
+}' | sudo tee /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
+
+Caddy obtains and renews certificates automatically. Close port 5000 to the outside:
+
+```bash
+sudo ufw allow OpenSSH && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw enable
+```
+
+**LAN-only use** (a shop or office network) needs no domain: open
+`http://<server-ip>:5000`. The app works over plain HTTP on a LAN.
+
+### 6. Backups
+
+Your invoices are your business. InWoice backs itself up **automatically once a day** to
+`backend/backups/` (one gzipped JSON file per day, the newest 14 kept; set `BACKUP_DIR`
+and `BACKUP_KEEP` in `backend/.env` to change this). Admins can also back up now, download
+a copy, or restore from Settings › Backups.
+
+Backups on the same disk don't survive a dead disk or a lost server, so **copy them off the
+server**. The simplest way is built in: Settings › Backups › **Off-site copy** uploads each
+daily backup to any S3-compatible bucket (AWS S3, Cloudflare R2, Backblaze B2, Wasabi,
+MinIO). Use a key that can only write to that one bucket, press *Test*, and turn on the
+bucket's lifecycle rule to expire old files. Alternatively, with [rclone](https://rclone.org) set up for Google Drive or S3 (`rclone config`):
+
+```bash
+sudo -u inwoice crontab -e
+# add: 0 3 * * * rclone copy /opt/inwoice/app/backend/backups gdrive:inwoice-backups --max-age 48h
+```
+
+To restore on a new server: install the app (steps 1–3), then either upload the file in
+Settings › Backups › Restore, or from the command line:
+
+```bash
+cd /opt/inwoice/app && npm run restore -- /path/to/inwoice-20261014-020000.json.gz
+# into a database that already has data:  npm run restore -- <file> --replace
+```
+
+Restore a backup into a test database once, so you know it works before you need it.
+`pg_dump` still works as an extra layer if you prefer it.
+
+### 7. Updating
+
+```bash
+cd /opt/inwoice/app
+sudo -u inwoice git pull
+sudo -u inwoice npm run setup     # installs deps + applies new migrations
+sudo -u inwoice npm run build
+sudo systemctl restart inwoice
+```
+
+Always take a backup before updating.
 
 ---
 
-### 2. Environment Variables
+## Monitoring
 
-Create a `.env` file in the `backend/` directory:
+- `GET /health` returns `status`, the database check, `version`, `uptimeSeconds`,
+  `memoryMb` and `alerts.lastError`. Point an uptime monitor (e.g. UptimeRobot) at it.
+- Set `ALERT_WEBHOOK_URL` to a Slack or Discord incoming-webhook URL (or any endpoint that
+  accepts a JSON POST). Server errors (HTTP 500), crashes, failed migrations and failed
+  scheduled jobs (backup, reminders, recurring invoices…) are posted there with the business
+  name. The same error is sent at most once every 15 minutes, and at most 30 alerts an hour.
+- The activity log (menu › Activity log) shows who changed what. It is pruned after
+  `AUDIT_RETENTION_DAYS` (default 1095).
 
-```env
-# Server Configuration
-PORT=5000
-NODE_ENV=production
+## Hosting many businesses (SaaS mode)
 
-# Authentication (CRITICAL - Change these!)
-ADMIN_PASSWORD_HASH=<your-bcrypt-hash>
-JWT_SECRET=<your-random-secret>
-JWT_EXPIRES_IN=24h
+One server can host many businesses, each with its own data (a separate PostgreSQL schema),
+users, settings and backups.
 
-# Frontend URL for CORS
-FRONTEND_URL=https://yourinvoice.app
+1. **DNS and HTTPS.** Point `*.billing.example.com` (wildcard A record) and
+   `billing.example.com` at the server. With Caddy, use a wildcard certificate (DNS challenge)
+   or on-demand TLS, and proxy everything to `localhost:5000`.
+2. **Configure** `backend/.env`:
+   ```bash
+   MULTI_TENANT=1
+   BASE_DOMAIN=billing.example.com
+   APP_URL=https://billing.example.com
+   SIGNUP_ENABLED=1          # let visitors start a free trial at billing.example.com
+   TRIAL_DAYS=14
+   PLATFORM_NAME=YourBrand
+   SUPPORT_EMAIL=support@example.com
+   ```
+3. **Create the platform admin and businesses** (after `npm run build`):
+   ```bash
+   npm run platform -- create-admin you@example.com 'a-long-password'
+   npm run platform -- create acme "Acme Stickers" owner@acme.in 'their-password' GROWTH
+   npm run platform -- adopt mybiz "My Business"   # move an existing single-business database in
+   npm run platform -- list
+   npm run platform -- migrate                     # also runs automatically at startup
+   ```
+4. Each business opens at `https://<slug>.billing.example.com`. A business can also use its
+   own domain: set it on the `/platform` admin page and point that domain's DNS at the server.
+5. Sign in at `https://billing.example.com/platform` as the platform admin to see every
+   business, change plans, extend trials, suspend or reactivate.
 
-# Logging
-LOG_LEVEL=info
+**Plans** (Starter, Growth, Pro) limit users and invoices per month. When a trial ends or a
+business is suspended, its users can still sign in and read or export everything, but
+changes are refused until the account is active again. Collecting subscription payments is
+not built in yet (Razorpay Subscriptions is on the roadmap); until then, change plans by hand
+on the platform page.
 
-# AI Configuration (Optional)
-USE_OLLAMA_AI=false
-OLLAMA_URL=http://localhost:11434/api/chat
-OLLAMA_MODEL=qwen2.5:1.5b
+**Sizing:** each active business keeps a small database pool (`TENANT_CONNECTIONS`, default
+3). Up to `TENANT_CLIENTS` (default 20) stay open at once and the least recently used are
+closed. Keep PostgreSQL's `max_connections` above `TENANT_CLIENTS × TENANT_CONNECTIONS + 10`.
+The scheduler runs each business's jobs in turn every 30 minutes.
 
-USE_LOCAL_PYTHON_AI=true
-LOCAL_AI_URL=http://127.0.0.1:8000/parse
+Backups in this mode are per business (each admin sees only their own in Settings ›
+Backups). Also run a nightly `pg_dump` of the whole database for disaster recovery.
 
-GEMINI_API_KEY=your_gemini_api_key_here
+## Option B: Docker Compose
 
-# Google Sheets (Optional)
-GOOGLE_APPLICATION_CREDENTIALS=./credentials.json
-GOOGLE_SPREADSHEET_ID=your_spreadsheet_id
-
-# SMTP Email (Optional - can be configured via UI)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
+```bash
+cp .env.docker.example .env        # set POSTGRES_PASSWORD and JWT_SECRET
+docker compose up -d --build
+docker compose logs -f app
 ```
 
-Frontend `.env` (create in `frontend/` directory):
-```env
-REACT_APP_API_URL=https://api.yourinvoice.app
+The stack is PostgreSQL 16 (tuned small) plus the app at 512 MB max. Migrations run
+automatically on start. Data lives in the `pgdata` volume, and the app's daily backups in
+the `backups` volume. Copy them off the server regularly:
+
+```bash
+docker compose cp app:/app/backend/backups ./inwoice-backups
 ```
+
+Restore with Settings › Backups, or
+`docker compose exec app node dist/cli/backup.js restore /app/backend/backups/<file> --replace`.
+
+To add local AI: `docker compose --profile ai up -d`, then
+`docker compose exec ollama ollama pull qwen2.5:1.5b`, and set the Ollama URL in
+Settings > AI to `http://ollama:11434`.
+
+## Option C: Windows machine
+
+1. Install PostgreSQL (the EDB installer) and Node.js LTS.
+2. Follow the [Setup Guide](SETUP_GUIDE.md) steps 1–2 with `NODE_ENV=production`.
+3. Run `npm run setup` and `npm run build`.
+4. Run it as a service with [NSSM](https://nssm.cc/):
+   `nssm install InWoice "C:\Program Files\nodejs\node.exe" "dist\index.js"`, with the start
+   directory set to `...\InWoice\backend`.
+5. Daily backups are written to `backend\backups` automatically. Put that folder inside a
+   Google Drive or OneDrive synced folder (set `BACKUP_DIR` to it) so copies leave the machine.
 
 ---
 
-### 3. Docker Deployment
-
-#### **Build and Run with Docker Compose**
-
-```bash
-# Build images
-docker-compose build
-
-# Start services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
-```
-
-#### **Production Docker Compose**
-
-Create `docker-compose.prod.yml`:
-
-```yaml
-version: '3.8'
-
-services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
-    environment:
-      - NODE_ENV=production
-      - PORT=5000
-    env_file:
-      - ./backend/.env
-    volumes:
-      - ./backend/database.json:/app/database.json
-      - ./backend/backups:/app/backups
-      - ./backend/logs:/app/logs
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:80"
-    environment:
-      - NODE_ENV=production
-    depends_on:
-      backend:
-        condition: service_healthy
-    restart: unless-stopped
-
-  local-ai:
-    build:
-      context: ./local_ai
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    restart: unless-stopped
-```
-
-Run with:
-```bash
-docker-compose -f docker-compose.prod.yml up -d
-```
-
----
-
-### 4. Manual Deployment (Without Docker)
-
-#### **Backend Setup**
-
-```bash
-cd backend
-
-# Install dependencies
-npm install --production
-
-# Run database migrations if any
-# (Currently using JSON, no migrations needed)
-
-# Start server with PM2 (process manager)
-npm install -g pm2
-pm2 start server.js --name inwoice-backend
-pm2 save
-pm2 startup
-```
-
-#### **Frontend Setup**
-
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Build for production
-npm run build
-
-# Serve with nginx or serve
-npm install -g serve
-serve -s build -p 3000
-```
-
----
-
-### 5. HTTPS/SSL Setup
-
-#### **Option 1: Nginx Reverse Proxy**
-
-Install Nginx:
-```bash
-sudo apt-get install nginx
-```
-
-Create `/etc/nginx/sites-available/inwoice`:
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name yourdomain.com;
-
-    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
-
-    # Frontend
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-
-    # Backend API
-    location /api {
-        proxy_pass http://localhost:5000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-Enable site:
-```bash
-sudo ln -s /etc/nginx/sites-available/inwoice /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
-```
-
-#### **Option 2: Let's Encrypt SSL**
-
-```bash
-# Install certbot
-sudo apt-get install certbot python3-certbot-nginx
-
-# Get certificate
-sudo certbot --nginx -d yourdomain.com
-
-# Auto-renewal
-sudo certbot renew --dry-run
-```
-
----
-
-### 6. Backup Strategy
-
-#### **Automated Backups**
-
-The backend includes automated daily backups (configured in code with node-cron).
-
-Manual backup:
-```bash
-# Backup database
-cp backend/database.json backend/backups/database-$(date +%Y-%m-%d).json
-
-# Backup with tar
-tar -czf inwoice-backup-$(date +%Y-%m-%d).tar.gz \
-  backend/database.json \
-  backend/.env \
-  backend/logs
-```
-
-#### **Restore from Backup**
-
-```bash
-# Restore database
-cp backend/backups/database-2026-03-28.json backend/database.json
-
-# Restart services
-docker-compose restart
-# OR
-pm2 restart inwoice-backend
-```
-
----
-
-### 7. Monitoring
-
-#### **Health Check**
-
-Check if services are running:
-```bash
-curl http://localhost:5000/health
-```
-
-Expected response:
-```json
-{
-  "status": "ok",
-  "timestamp": "2026-03-28T17:00:00.000Z",
-  "uptime": 3600,
-  "environment": "production"
-}
-```
-
-#### **Log Monitoring**
-
-```bash
-# Docker
-docker-compose logs -f backend
-
-# PM2
-pm2 logs inwoice-backend
-
-# Log files
-tail -f backend/logs/combined.log
-tail -f backend/logs/error.log
-```
-
----
-
-### 8. Performance Optimization
-
-#### **Backend**
-
-- Enable Node.js clustering for multi-core usage
-- Use Redis for caching (future improvement)
-- Implement CDN for static assets
-
-#### **Frontend**
-
-- Enable gzip compression in Nginx
-- Implement service worker for offline support
-- Lazy load routes and components
-
----
-
-### 9. Security Best Practices
-
-✅ **Completed:**
-- JWT authentication with bcrypt password hashing
-- Rate limiting on API endpoints
-- CORS restricted to specific origins
-- Helmet.js for security headers
-- Input validation with Zod
-- Error handling without exposing stack traces
-
-🔄 **Recommended:**
-- Enable HTTPS (see section 5)
-- Regular dependency updates (`npm audit`)
-- Firewall configuration (UFW/iptables)
-- Regular backups (automated)
-- Two-factor authentication (future feature)
-
----
-
-### 10. Troubleshooting
-
-#### **Backend won't start**
-
-```bash
-# Check logs
-cat backend/logs/error.log
-
-# Verify environment variables
-node -e "require('dotenv').config(); console.log(process.env.JWT_SECRET)"
-
-# Check port availability
-lsof -i :5000
-```
-
-#### **Frontend can't connect to backend**
-
-- Verify `REACT_APP_API_URL` in frontend `.env`
-- Check CORS configuration in backend
-- Verify backend is running: `curl http://localhost:5000/health`
-
-#### **Authentication fails**
-
-- Verify JWT_SECRET is set
-- Check token in browser localStorage
-- Generate new password hash if needed
-
-#### **Database corruption**
-
-```bash
-# Restore from backup
-cp backend/backups/database-latest.json backend/database.json
-
-# Verify JSON structure
-node -e "console.log(JSON.parse(require('fs').readFileSync('backend/database.json')))"
-```
-
----
-
-### 11. Scaling Considerations
-
-For production with high traffic:
-
-1. **Load Balancer**: Use Nginx or HAProxy
-2. **Database**: Migrate from JSON to PostgreSQL/MongoDB
-3. **Caching**: Implement Redis for sessions and data
-4. **CDN**: Use Cloudflare for static assets
-5. **Monitoring**: Set up Prometheus + Grafana
-6. **Alerting**: Configure alerts for downtime
-
----
-
-## 📞 Support
-
-For issues or questions:
-- Check logs first: `backend/logs/`
-- Review environment variables
-- Verify all services are running
-- Check firewall and network settings
-
----
-
-**Version:** 1.0.0  
-**Last Updated:** March 2026
+## Production checklist
+
+- [ ] `JWT_SECRET` is long and random. The API refuses to start in production without one.
+- [ ] HTTPS is set up (Caddy/nginx), or access is LAN-only.
+- [ ] Port 5000 is not exposed publicly when behind a proxy.
+- [ ] Daily backups appear in Settings › Backups, are copied off the server, and a restore
+      has been tested once.
+- [ ] `TZ` is set to the business's time zone (default `Asia/Kolkata`).
+- [ ] Demo data was **not** seeded, or the demo account is disabled.
+- [ ] Business details, GSTIN, state, UPI and invoice prefix are filled in under Settings.
+- [ ] SMTP works: use Settings > Email > Send test email. Then decide whether to switch on
+      automatic payment reminders.
+- [ ] `GET /health` is monitored (e.g. UptimeRobot via your domain), and
+      `ALERT_WEBHOOK_URL` is set so errors reach you.
+- [ ] `APP_URL` is set, so links in emails (portal, password reset) point to the right place.
+- [ ] Admin accounts have two-factor sign-in turned on (Settings › Account).
+- [ ] Staff have the narrowest role that fits (Sales, Stores, Accountant) rather than Admin.
+- [ ] Off-site backup is configured and *Test* succeeds.
+- [ ] After each GST filing, the period is locked (Settings › Invoicing › Period lock).

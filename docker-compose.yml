@@ -1,29 +1,69 @@
+# Production-style stack: PostgreSQL + InWoice.
+#   1. cp .env.docker.example .env   (and set strong values)
+#   2. docker compose up -d --build
+#   3. open http://<server>:5000
+# Optional local AI:  docker compose --profile ai up -d   then
+#   docker compose exec ollama ollama pull qwen2.5:1.5b
 services:
-  backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: inwoice
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: inwoice
+    # Small-server tuning: InWoice needs very little database memory.
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=30", "-c", "work_mem=4MB"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inwoice -d inwoice"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "5000:5000"
-    env_file: ./backend/.env
-    volumes:
-      - ./backend/data:/app/backend/data
-      - ./backend/uploads:/app/backend/uploads
-      - ./backend/backups:/app/backend/backups
     environment:
-      DATABASE_PATH: /app/backend/data/data.db
-      WA_SESSION_DATA_PATH: /app/backend/data/openwa-sessions
-      LOCAL_AI_URL: http://local-ai:8000/parse
       NODE_ENV: production
-      OPENWA_ENABLED: "false"
-    restart: unless-stopped
+      PORT: 5000
+      DATABASE_URL: postgresql://inwoice:${POSTGRES_PASSWORD}@db:5432/inwoice?schema=public&connection_limit=5
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OLLAMA_URL: ${OLLAMA_URL:-}
+      # Dates in reports, reminders and backups follow this time zone.
+      TZ: ${TZ:-Asia/Kolkata}
+      BACKUP_DIR: /app/backend/backups
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      # Public address, used in emailed links (portal, password reset, summaries).
+      APP_URL: ${APP_URL:-}
+      # Multi-business (SaaS) mode; see docs/DEPLOYMENT.md "Hosting many businesses".
+      MULTI_TENANT: ${MULTI_TENANT:-0}
+      BASE_DOMAIN: ${BASE_DOMAIN:-}
+      SIGNUP_ENABLED: ${SIGNUP_ENABLED:-0}
+      TRIAL_DAYS: ${TRIAL_DAYS:-14}
+      PLATFORM_NAME: ${PLATFORM_NAME:-InWoice}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+      AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-1095}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+    volumes:
+      - backups:/app/backend/backups
+    mem_limit: 512m
 
-  local-ai:
-    build: ./local_ai
-    ports:
-      - "8000:8000"
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ai"]
     restart: unless-stopped
-    profiles:
-      - ai
-    # Note: Running AI models requires significant RAM. 
-    # If deploying on a low-power device, use Gemini Cloud instead.
+    volumes:
+      - ollama:/root/.ollama
+
+volumes:
+  pgdata:
+  backups:
+  ollama:
