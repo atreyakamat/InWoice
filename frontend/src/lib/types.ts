@@ -65,6 +65,11 @@ export interface Settings {
   s3Prefix: string | null;
   s3AccessKey: string | null;
   s3SecretKeySet: boolean;
+  shopSyncEnabled: boolean;
+  shopUrl: string | null;
+  shopSyncTokenSet: boolean;
+  shopSyncLastAt: string | null;
+  shopSyncLastError: string | null;
 }
 
 export interface Customer {
