@@ -8,6 +8,7 @@ import { runAsTenant } from '../lib/tenancy';
 import { accountState, listTenants } from './platform.service';
 import { takeStockSnapshot } from './accounts.service';
 import { runOwnerDigest } from './digest.service';
+import { runShopSync } from './shop-sync.service';
 import { reportError } from '../lib/alerts';
 import prisma from '../lib/prisma';
 
@@ -65,6 +66,14 @@ async function runJobs(label: string, active: boolean) {
     }
   } catch (err) {
     fail('recurring', err);
+  }
+  try {
+    const r = await runShopSync();
+    if (r.created.length || r.updated.length || r.failed.length) {
+      log('shop', `new ${r.created.join(', ') || 'none'}; updated ${r.updated.join(', ') || 'none'}${r.failed.length ? `; failed: ${r.failed.map((f) => `${f.order} (${f.error})`).join('; ')}` : ''}`);
+    }
+  } catch (err) {
+    fail('shop', err);
   }
   try {
     const r = await runReminders();

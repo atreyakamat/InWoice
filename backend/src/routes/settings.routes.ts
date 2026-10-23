@@ -9,6 +9,7 @@ import { CLAUDE_MODELS, generate, getAiConfig, isAiEnabled, type AiProvider } fr
 import { isEmailConfigured, sendMail } from '../services/email.service';
 import { dueReminders, parseReminderDays, runReminders } from '../services/reminder.service';
 import { runMonthlyStatements } from '../services/documents.service';
+import { runShopSync, shopUrlOrNull } from '../services/shop-sync.service';
 
 const router = Router();
 router.use(authenticate);
@@ -83,6 +84,9 @@ const settingsInput = z.object({
   aiModel: optStr,
   aiApiKey: z.string().optional(),
   ollamaUrl: optStr,
+  shopSyncEnabled: z.boolean().optional(),
+  shopUrl: optStr,
+  shopSyncToken: z.string().optional(),
 });
 
 router.get('/', async (_req, res) => {
@@ -98,7 +102,8 @@ router.put('/', requireAdmin, async (req, res) => {
   const input = settingsInput.parse(req.body);
   const s = await getSettings();
   const data: Record<string, unknown> = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
-  for (const secret of ['smtpPassword', 'aiApiKey', 's3SecretKey'] as const) {
+  if (input.shopUrl !== undefined) data.shopUrl = shopUrlOrNull(input.shopUrl);
+  for (const secret of ['smtpPassword', 'aiApiKey', 's3SecretKey', 'shopSyncToken'] as const) {
     if (input[secret] === undefined) delete data[secret];
     else data[secret] = input[secret].trim() === '' ? null : input[secret].trim();
   }
@@ -146,6 +151,11 @@ router.post('/reminders/run', requireAdmin, async (_req, res) => {
 /** Send last month's statements now (normally done automatically once a month). */
 router.post('/statements/run', requireAdmin, async (_req, res) => {
   res.json({ success: true, data: await runMonthlyStatements() });
+});
+
+/** Pull new and changed orders from the online shop now (normally every 30 minutes). */
+router.post('/shop-sync/run', requireAdmin, async (_req, res) => {
+  res.json({ success: true, data: await runShopSync({ force: true }) });
 });
 
 router.post('/test-email', requireAdmin, async (req, res) => {

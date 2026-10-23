@@ -59,6 +59,15 @@ npm --prefix backend run dev
 npm --prefix frontend run dev
 ```
 
+## Connecting your online shop (optional)
+
+InWoice can pull orders from a shop that serves `GET /api/integrations/orders` (the Stix N Vibes shop does).
+
+1. On the shop's host (Netlify for the Stix N Vibes shop), add `INWOICE_SYNC_TOKEN` = 32+ random characters (`openssl rand -base64 48`) and redeploy.
+2. In InWoice, **Settings › Shop**: tick "Sync orders from the shop", enter the shop address (`https://shop.stixnvibes.com`) and the same token, save, then press **Sync now**.
+
+Each order adds or matches a customer by mobile number and becomes a draft invoice (no GST on the lines: shop prices are final). Confirmed in the shop issues it, paid records a UPI payment, cancelled cancels it while unpaid. Issued invoices are never rewritten. The sync runs every 30 minutes; the last run and any error show in Settings › Shop.
+
 ## Useful commands
 
 | Command | What it does |

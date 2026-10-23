@@ -19,6 +19,7 @@ self-hosting, and modest hardware.
 | **Customer portal** | A private link per customer to see invoices, balance and statement and download PDFs. Statements of account by PDF/email, optionally every month. |
 | **Bank & tax depth** | Bank statement CSV import with automatic matching. TDS on receipts and supplier payments. Supplier debit notes. GSTR-1 JSON for the offline tool, a GSTR-2B check against your bills, stock valuation in the P&L. |
 | **Actions (approve, then run)** | Chase overdue invoices with editable (AI-written or template) emails, create draft purchase orders for low materials, re-send expiring quotes. A monthly summary email for owners. With AI on, a bill photo or PDF fills in the bill form. |
+| **Online shop sync** | Pulls orders from your shop (e.g. the Stix N Vibes shop) every 30 minutes: new customers are matched or added by mobile number, each order becomes an invoice, and confirmed/paid/cancelled in the shop issue, settle or cancel it. Catches up after the server has been off. Settings › Shop. |
 | **Customers** | Contact details, GSTIN, lifetime value, outstanding balance, invoice history, activity timeline, notes. |
 | **Catalog** | Products (price, cost, margin, tax, stock, low-stock alerts) and packs (bundles that draw down component stock). |
 | **Operations** | Raw-material inventory with a full movement audit trail, suppliers, purchase orders with partial receiving, bills of materials, production batches, made-to-order consumption, fulfillment/shipping tracking, pop-up event stock. |

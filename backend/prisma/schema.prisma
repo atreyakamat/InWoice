@@ -92,6 +92,14 @@ model BusinessSettings {
   aiModel              String?
   aiApiKey             String?
   ollamaUrl            String?
+  // Online shop sync (Stix N Vibes shop or any shop with the same order feed): orders
+  // become customers and invoices. The cursor is the shop's updatedAt of the last order read.
+  shopSyncEnabled      Boolean   @default(false)
+  shopUrl              String?
+  shopSyncToken        String?
+  shopSyncCursor       String?
+  shopSyncLastAt       DateTime?
+  shopSyncLastError    String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 }
@@ -227,6 +235,7 @@ model Invoice {
   notes          String?
   recurringId    String?
   recurring      RecurringInvoice? @relation(fields: [recurringId], references: [id], onDelete: SetNull)
+  shopOrderRef   String?           @unique // order number (SNV-…) for invoices made by the shop sync
   quote          Quote?
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
