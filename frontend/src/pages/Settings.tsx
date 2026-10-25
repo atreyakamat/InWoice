@@ -536,9 +536,9 @@ function ShopTab({ settings, disabled }: { settings: SettingsT; disabled: boolea
   return (
     <Card title="Online shop">
       <p className="mb-4 text-sm text-slate-500">
-        Every 30 minutes InWoice reads new and changed orders from your shop. Each order adds or matches a customer (by mobile number) and becomes a
-        draft invoice. When you mark the order confirmed in the shop the invoice is issued, marking it paid records a UPI payment, and cancelling it
-        cancels the invoice. If this server is off for a while, it catches up when it&apos;s back.
+        Every 30 minutes InWoice reads changed orders from your shop. Once you confirm an order in the shop, it adds or matches the customer (by
+        mobile number) and becomes an issued invoice; unconfirmed orders are ignored, so spam never uses up invoice numbers. Marking it paid records a
+        UPI payment, and cancelling it cancels the invoice. If this server is off for a while, it catches up when it&apos;s back.
       </p>
       <fieldset disabled={disabled} className="grid gap-4">
         <label className="flex items-center gap-2 text-sm font-medium text-slate-800">

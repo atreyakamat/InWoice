@@ -23,7 +23,7 @@ const server = http.createServer((req, res) => {
 const order = (number: string, over: Record<string, unknown> = {}) => ({
   id: number,
   number,
-  status: 'new',
+  status: 'confirmed',
   customerName: 'Asha Naik',
   customerPhone: '9876543210',
   fulfilment: 'delivery',
@@ -66,13 +66,25 @@ describe('shop sync', () => {
     expect(JSON.stringify(res.body)).not.toContain(TOKEN);
   });
 
-  it('turns a new order into a customer and a draft invoice', async () => {
-    orders = [order('SNV-AAAAA1')];
+  it('ignores orders until they are confirmed, so spam uses no invoice numbers', async () => {
+    orders = [order('SNV-SPAM01', { status: 'new', customerPhone: '9111111111' }), order('SNV-SPAM02', { status: 'new' })];
+    const before = (await prisma.businessSettings.findFirstOrThrow()).nextInvoiceNumber;
+    const r = await runShopSync();
+    expect(r).toMatchObject({ created: [], updated: [], failed: [] });
+    expect(await prisma.invoice.count()).toBe(0);
+    expect(await prisma.customer.count()).toBe(0);
+    expect((await prisma.businessSettings.findFirstOrThrow()).nextInvoiceNumber).toBe(before);
+  });
+
+  it('turns a confirmed order into a customer and an issued invoice', async () => {
+    orders = [order('SNV-AAAAA1', { status: 'new' })];
+    await runShopSync();
+    orders = [order('SNV-AAAAA1', { updatedAt: '2026-10-20T11:00:00.000000+00:00' })];
     const r = (await api.post('/api/settings/shop-sync/run').set(auth)).body.data;
     expect(r).toMatchObject({ skipped: null, created: ['SNV-AAAAA1'], failed: [] });
 
     const inv = await prisma.invoice.findUniqueOrThrow({ where: { shopOrderRef: 'SNV-AAAAA1' }, include: { items: true, customer: true } });
-    expect(inv.status).toBe('DRAFT');
+    expect(inv.status).toBe('PENDING');
     expect(inv.subtotal).toBe(150);
     expect(inv.discount).toBe(10);
     expect(inv.taxAmount).toBe(0);
@@ -83,10 +95,11 @@ describe('shop sync', () => {
     expect(inv.customer).toMatchObject({ name: 'Asha Naik', phone: '9876543210', city: 'Panaji', state: 'Goa' });
     expect(await prisma.activity.count({ where: { customerId: inv.customerId, eventType: 'SHOP_ORDER' } })).toBe(1);
 
-    // Running again with nothing new changes nothing, and asks from the cursor.
+    // Running again with nothing new changes nothing, and asks from the cursor...
     const again = await runShopSync();
     expect(again).toMatchObject({ created: [], updated: [] });
-    expect(seenSince.at(-1)).toBe('2026-10-20T10:00:00.000000+00:00');
+    // ...looking back 5 minutes in case a late write carries an earlier time.
+    expect(seenSince.at(-1)).toBe('2026-10-20T10:55:00.000Z');
   });
 
   it('matches returning customers by phone however it was typed', async () => {
@@ -101,9 +114,7 @@ describe('shop sync', () => {
     expect(inv.notes).toContain('Pickup at a stall');
   });
 
-  it('follows the order: confirmed issues, paid records the payment, cancelled cancels', async () => {
-    orders[0] = { ...orders[0], status: 'confirmed', updatedAt: '2026-10-22T08:00:00.000Z' };
-    expect((await runShopSync()).updated).toEqual(['SNV-AAAAA1']);
+  it('follows the order: paid records the payment, cancelled cancels', async () => {
     let inv = await prisma.invoice.findUniqueOrThrow({ where: { shopOrderRef: 'SNV-AAAAA1' } });
     expect(inv.status).toBe('PENDING');
 
@@ -134,6 +145,28 @@ describe('shop sync', () => {
     const r = await runShopSync();
     expect(r.created).toHaveLength(105);
     expect(await prisma.customer.count({ where: { phone: '9000000001' } })).toBe(1);
+  });
+
+  it('still picks up a change saved a little late with an earlier time', async () => {
+    orders.push(order('SNV-LATE01', { updatedAt: '2026-10-23T09:59:00.000Z' })); // cursor is 10:01:44
+    expect((await runShopSync()).created).toEqual(['SNV-LATE01']);
+  });
+
+  it('rejects oversized or hostile orders and never follows redirects', async () => {
+    const huge = order('SNV-HUGE01', { customerName: 'x'.repeat(5000), updatedAt: '2026-10-24T00:00:00.000Z' });
+    orders.push(huge);
+    const r = await runShopSync();
+    expect(r.created).toEqual([]);
+    expect(r.failed).toEqual([{ order: 'SNV-HUGE01', error: 'Unexpected order format' }]);
+
+    // A redirect could hand the token to another server: refuse to follow it.
+    const seen: RequestInit[] = [];
+    const fake = (async (_url: URL, init: RequestInit) => {
+      seen.push(init);
+      return new Response('', { status: 200 });
+    }) as unknown as typeof fetch;
+    await runShopSync({ fetchImpl: fake });
+    expect(seen[0].redirect).toBe('error');
   });
 
   it('reports a wrong token and keeps its place', async () => {

@@ -12,35 +12,42 @@ import { addPayment, cancelInvoice, createInvoice, issueInvoice } from './invoic
  *
  * - Customer: matched by mobile number (last 10 digits), created if new. Only blank
  *   fields are filled in, so edits made in InWoice are kept.
- * - Invoice: a draft per order (shopOrderRef = SNV-…). When the shop marks the order
- *   confirmed/shipped it's issued; paid/shipped/done records the payment; cancelled
+ * - Invoice: made once the order is confirmed in the shop (shopOrderRef = SNV-…) and
+ *   issued straight away; paid/shipped/done records the payment; cancelled
  *   cancels it while it has no payments. Issued invoices are never rewritten.
  * Shop prices are final prices, so lines carry no GST.
  */
 
 const PAGE = 100;
+const LOOK_BACK_MS = 5 * 60 * 1000;
+const lookBack = (iso: string) => (Number.isNaN(Date.parse(iso)) ? iso : new Date(Date.parse(iso) - LOOK_BACK_MS).toISOString());
+const MAX_FEED_CHARS = 5_000_000;
 const MAX_PAGES = 20;
 
+// Caps keep a broken or hostile feed from writing huge rows; real orders are far smaller.
+const text = (max: number) => z.string().max(max);
+const MAX_PAISE = 1_00_00_000_00; // ₹1 crore
+
 const line = z.object({
-  name: z.string(),
-  options: z.array(z.string()).default([]),
-  unitPricePaise: z.number().int().min(0),
-  qty: z.number().int().positive(),
+  name: text(200),
+  options: z.array(text(120)).max(20).default([]),
+  unitPricePaise: z.number().int().min(0).max(MAX_PAISE),
+  qty: z.number().int().positive().max(10_000),
 });
 
 export const shopOrder = z.object({
   number: z.string().regex(/^[A-Z]+-[A-Z0-9]+$/),
   status: z.enum(['new', 'confirmed', 'paid', 'shipped', 'done', 'cancelled']),
-  customerName: z.string().default(''),
-  customerPhone: z.string().default(''),
+  customerName: text(120).default(''),
+  customerPhone: text(30).default(''),
   fulfilment: z.enum(['delivery', 'pickup']).default('delivery'),
-  address: z.object({ line: z.string(), city: z.string(), state: z.string(), pincode: z.string() }).partial().default({}),
-  customerNote: z.string().default(''),
-  lines: z.array(line).min(1),
-  discountPaise: z.number().int().min(0).default(0),
-  totalPaise: z.number().int().min(0),
-  offers: z.array(z.object({ name: z.string() })).default([]),
-  pageUrl: z.string().nullable().optional(),
+  address: z.object({ line: text(300), city: text(80), state: text(80), pincode: text(12) }).partial().default({}),
+  customerNote: text(1000).default(''),
+  lines: z.array(line).min(1).max(200),
+  discountPaise: z.number().int().min(0).max(MAX_PAISE).default(0),
+  totalPaise: z.number().int().min(0).max(MAX_PAISE),
+  offers: z.array(z.object({ name: text(120) })).max(20).default([]),
+  pageUrl: text(300).nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -116,8 +123,10 @@ export async function applyShopOrder(o: ShopOrder): Promise<'created' | 'updated
   let inv = await prisma.invoice.findUnique({ where: { shopOrderRef: o.number } });
 
   if (!inv) {
-    // An order cancelled before InWoice saw it needs no invoice.
-    if (o.status === 'cancelled') return 'skipped';
+    // Anyone can place a shop order, so nothing is made until you confirm it in the shop:
+    // spam never adds customers or uses up invoice numbers (GST needs an unbroken series).
+    // A confirmed order shows up in the feed again because its updatedAt changes.
+    if (o.status === 'new' || o.status === 'cancelled') return 'skipped';
     const customer = await upsertCustomer(o);
     await prisma.activity.create({
       data: {
@@ -198,13 +207,24 @@ export async function runShopSync(opts: { force?: boolean; fetchImpl?: typeof fe
   try {
     for (let page = 0; page < MAX_PAGES; page++) {
       const url = new URL('/api/integrations/orders', s.shopUrl);
-      if (cursor) url.searchParams.set('since', cursor);
+      // The first page looks back a few minutes: the shop stamps updatedAt from its own
+      // servers, so a change saved a moment late could carry a time just before the
+      // cursor. Orders seen twice are harmless (applyShopOrder is idempotent).
+      const since = page === 0 && cursor ? lookBack(cursor) : cursor;
+      if (since) url.searchParams.set('since', since);
       url.searchParams.set('limit', String(PAGE));
-      const res = await doFetch(url, { headers: { Authorization: `Bearer ${s.shopSyncToken}`, Accept: 'application/json' }, signal: AbortSignal.timeout(20_000) });
+      // redirect: 'error' so the token is never sent on to another address.
+      const res = await doFetch(url, {
+        headers: { Authorization: `Bearer ${s.shopSyncToken}`, Accept: 'application/json' },
+        redirect: 'error',
+        signal: AbortSignal.timeout(20_000),
+      });
       if (res.status === 401) throw new Error('The shop rejected the sync token. Check it matches INWOICE_SYNC_TOKEN on the shop.');
       if (res.status === 404) throw new Error('The shop has no order feed at that address (is INWOICE_SYNC_TOKEN set on the shop?)');
       if (!res.ok) throw new Error(`The shop answered ${res.status}`);
-      const body = feed.parse(await res.json());
+      const raw = await res.text();
+      if (raw.length > MAX_FEED_CHARS) throw new Error('The shop sent more data than expected');
+      const body = feed.parse(JSON.parse(raw));
 
       for (const raw of body.orders) {
         const parsed = shopOrder.safeParse(raw);
