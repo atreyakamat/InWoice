@@ -70,6 +70,8 @@ export interface Settings {
   shopSyncTokenSet: boolean;
   shopSyncLastAt: string | null;
   shopSyncLastError: string | null;
+  shopGstRate: number;
+  shopHsnCode: string | null;
 }
 
 export interface Customer {

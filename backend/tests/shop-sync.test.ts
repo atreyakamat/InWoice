@@ -177,5 +177,76 @@ describe('shop sync', () => {
     const s = await prisma.businessSettings.findFirstOrThrow();
     expect(s.shopSyncCursor).toBe(before);
     expect(s.shopSyncLastError).toContain('rejected the sync token');
+    await api.put('/api/settings').set(auth).send({ shopSyncToken: TOKEN });
+  });
+
+  it('says plainly when the shop cannot be reached', async () => {
+    const down = (async () => {
+      throw new TypeError('fetch failed', { cause: { code: 'ECONNREFUSED' } });
+    }) as unknown as typeof fetch;
+    const r = await runShopSync({ fetchImpl: down });
+    expect(r.failed[0].error).toMatch(/^Couldn't reach the shop at http:\/\/127\.0\.0\.1:\d+ \(ECONNREFUSED\)/);
+
+    const notAFeed = (async () => new Response('<html>hello</html>', { status: 200 })) as unknown as typeof fetch;
+    expect((await runShopSync({ fetchImpl: notAFeed })).failed[0].error).toContain("didn't answer with an order feed");
+  });
+
+  it('flags an order cancelled after payment until it is credited', async () => {
+    orders.push(order('SNV-REFND1', { status: 'paid', customerPhone: '9000000002', updatedAt: '2026-10-25T09:00:00.000Z' }));
+    expect((await runShopSync()).created).toEqual(['SNV-REFND1']);
+
+    orders.push({ ...orders.pop()!, status: 'cancelled', updatedAt: '2026-10-25T10:00:00.000Z' });
+    const r = await runShopSync();
+    expect(r).toMatchObject({ attention: ['SNV-REFND1'], updated: [], failed: [] });
+    const inv = await prisma.invoice.findUniqueOrThrow({ where: { shopOrderRef: 'SNV-REFND1' }, include: { items: true } });
+    expect(inv.status).toBe('PAID'); // money was taken, so it isn't cancelled automatically
+    expect(await prisma.activity.count({ where: { eventType: 'SHOP_CANCELLED_PAID', referenceId: 'SNV-REFND1' } })).toBe(1);
+
+    // Seen again (look-back window): not flagged twice.
+    expect((await runShopSync()).attention).toEqual([]);
+    const due = (await api.get('/api/settings/shop-sync/attention').set(auth)).body.data;
+    expect(due).toEqual([{ order: 'SNV-REFND1', invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, customer: 'Asha Naik', toRefund: 140 }]);
+
+    // A full credit note clears it from the list.
+    const cn = await api
+      .post(`/api/invoices/${inv.id}/credit-notes`)
+      .set(auth)
+      .send({ reason: 'RETURN', items: inv.items.map((i) => ({ invoiceItemId: i.id, quantity: i.quantity })) });
+    expect(cn.status).toBe(201);
+    expect((await api.get('/api/settings/shop-sync/attention').set(auth)).body.data).toEqual([]);
+  });
+
+  it('works GST back out of shop prices when a rate is set', async () => {
+    const bad = await api.put('/api/settings').set(auth).send({ shopHsnCode: '49' });
+    expect(bad.status).toBe(400);
+    await api.put('/api/settings').set(auth).send({ shopGstRate: 18, shopHsnCode: '4911', state: 'Goa' });
+    orders.push(order('SNV-GST001', { customerPhone: '9000000003', address: { line: '1 MG Road', city: 'Bengaluru', state: 'Karnataka', pincode: '560001' }, updatedAt: '2026-10-26T09:00:00.000Z' }));
+    orders.push(order('SNV-GST002', { customerPhone: '9000000004', fulfilment: 'pickup', address: {}, updatedAt: '2026-10-26T09:01:00.000Z' }));
+    // Awkward prices that don't divide evenly by 1.18.
+    orders.push(
+      order('SNV-GST003', {
+        customerPhone: '9000000005',
+        lines: [{ name: 'Lo-fi 07', options: [], unitPricePaise: 999, qty: 7 }, { name: 'Sheet', options: [], unitPricePaise: 8000, qty: 3 }],
+        discountPaise: 1333,
+        totalPaise: 999 * 7 + 8000 * 3 - 1333,
+        updatedAt: '2026-10-26T09:02:00.000Z',
+      }),
+    );
+    expect((await runShopSync()).created).toEqual(['SNV-GST001', 'SNV-GST002', 'SNV-GST003']);
+
+    const delivered = await prisma.invoice.findUniqueOrThrow({ where: { shopOrderRef: 'SNV-GST001' }, include: { items: true } });
+    expect(delivered.grandTotal).toBe(140); // still what the customer paid
+    expect(delivered.taxAmount).toBeCloseTo(140 - 140 / 1.18, 1);
+    expect(delivered.igst).toBe(delivered.taxAmount); // delivered to another state
+    expect(delivered.items.every((i) => i.taxRate === 18 && i.hsnCode === '4911')).toBe(true);
+    expect(delivered.notes).toContain('Shop prices include GST at 18%');
+
+    const pickup = await prisma.invoice.findUniqueOrThrow({ where: { shopOrderRef: 'SNV-GST002' } });
+    expect(pickup.grandTotal).toBe(140);
+    expect(pickup.igst).toBe(0); // picked up at your stall: CGST + SGST
+    expect(pickup.cgst + pickup.sgst).toBeCloseTo(pickup.taxAmount, 2);
+
+    expect((await prisma.invoice.findUniqueOrThrow({ where: { shopOrderRef: 'SNV-GST003' } })).grandTotal).toBe(296.6);
+    await api.put('/api/settings').set(auth).send({ shopGstRate: 0, shopHsnCode: '' });
   });
 });

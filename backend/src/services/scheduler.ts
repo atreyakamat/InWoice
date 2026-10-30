@@ -69,8 +69,8 @@ async function runJobs(label: string, active: boolean) {
   }
   try {
     const r = await runShopSync();
-    if (r.created.length || r.updated.length || r.failed.length) {
-      log('shop', `new ${r.created.join(', ') || 'none'}; updated ${r.updated.join(', ') || 'none'}${r.failed.length ? `; failed: ${r.failed.map((f) => `${f.order} (${f.error})`).join('; ')}` : ''}`);
+    if (r.created.length || r.updated.length || r.attention.length || r.failed.length) {
+      log('shop', `new ${r.created.join(', ') || 'none'}; updated ${r.updated.join(', ') || 'none'}${r.attention.length ? `; cancelled after payment: ${r.attention.join(', ')}` : ''}${r.failed.length ? `; failed: ${r.failed.map((f) => `${f.order} (${f.error})`).join('; ')}` : ''}`);
     }
   } catch (err) {
     fail('shop', err);

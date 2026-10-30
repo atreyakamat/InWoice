@@ -9,7 +9,7 @@ import { CLAUDE_MODELS, generate, getAiConfig, isAiEnabled, type AiProvider } fr
 import { isEmailConfigured, sendMail } from '../services/email.service';
 import { dueReminders, parseReminderDays, runReminders } from '../services/reminder.service';
 import { runMonthlyStatements } from '../services/documents.service';
-import { runShopSync, shopUrlOrNull } from '../services/shop-sync.service';
+import { runShopSync, shopOrdersNeedingAttention, shopUrlOrNull } from '../services/shop-sync.service';
 
 const router = Router();
 router.use(authenticate);
@@ -87,6 +87,14 @@ const settingsInput = z.object({
   shopSyncEnabled: z.boolean().optional(),
   shopUrl: optStr,
   shopSyncToken: z.string().optional(),
+  shopGstRate: z.coerce.number().min(0).max(28).optional(),
+  shopHsnCode: z
+    .string()
+    .trim()
+    .regex(/^(\d{4}|\d{6}|\d{8})?$/, 'An HSN/SAC code is 4, 6 or 8 digits')
+    .optional()
+    .nullable()
+    .transform((v) => (v === undefined ? undefined : v || null)),
 });
 
 router.get('/', async (_req, res) => {
@@ -156,6 +164,11 @@ router.post('/statements/run', requireAdmin, async (_req, res) => {
 /** Pull new and changed orders from the online shop now (normally every 30 minutes). */
 router.post('/shop-sync/run', requireAdmin, async (_req, res) => {
   res.json({ success: true, data: await runShopSync({ force: true }) });
+});
+
+/** Shop orders cancelled after payment that still need a refund and credit note. */
+router.get('/shop-sync/attention', async (_req, res) => {
+  res.json({ success: true, data: await shopOrdersNeedingAttention() });
 });
 
 router.post('/test-email', requireAdmin, async (req, res) => {

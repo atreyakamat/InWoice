@@ -14,8 +14,11 @@ import { addPayment, cancelInvoice, createInvoice, issueInvoice } from './invoic
  *   fields are filled in, so edits made in InWoice are kept.
  * - Invoice: made once the order is confirmed in the shop (shopOrderRef = SNV-…) and
  *   issued straight away; paid/shipped/done records the payment; cancelled
- *   cancels it while it has no payments. Issued invoices are never rewritten.
- * Shop prices are final prices, so lines carry no GST.
+ *   cancels it while it has no payments. Cancelled after payment is flagged for you to
+ *   refund and credit (Settings › Shop and the customer's activity). Issued invoices are
+ *   never rewritten.
+ * Shop prices are final prices. With a shop GST rate set, the tax is worked back out of
+ * them, so the invoice still totals what the customer paid.
  */
 
 const PAGE = 100;
@@ -66,19 +69,44 @@ export function mobile10(raw: string | null | undefined): string | null {
 
 const rupees = (paise: number) => round2(paise / 100);
 
-export function invoiceLines(o: ShopOrder) {
+export type ShopGst = { rate: number; hsnCode: string | null };
+const NO_GST: ShopGst = { rate: 0, hsnCode: null };
+
+export function invoiceLines(o: ShopOrder, gst: ShopGst = NO_GST) {
   return o.lines.map((l) => ({
     type: 'CUSTOM' as const,
     itemId: null,
-    hsnCode: null,
+    hsnCode: gst.hsnCode,
     name: l.options.length ? `${l.name} (${l.options.join(', ')})` : l.name,
     quantity: l.qty,
-    unitPrice: rupees(l.unitPricePaise),
-    taxRate: 0,
+    unitPrice: gst.rate > 0 ? round2(rupees(l.unitPricePaise) / (1 + gst.rate / 100)) : rupees(l.unitPricePaise),
+    taxRate: gst.rate,
   }));
 }
 
-export function invoiceNotes(o: ShopOrder) {
+/**
+ * The (pre-tax) discount that makes the invoice total exactly what the shop charged.
+ * Prices are rounded to paise once the GST is taken out, so the plain conversion can be a
+ * few paise off; this tries the neighbouring values using the same sums as createInvoice.
+ */
+export function invoiceDiscount(o: ShopOrder, gst: ShopGst = NO_GST) {
+  if (gst.rate <= 0) return rupees(o.discountPaise);
+  const totals = invoiceLines(o, gst).map((l) => round2(l.quantity * l.unitPrice));
+  const subtotal = round2(totals.reduce((a, t) => a + t, 0));
+  const target = rupees(o.totalPaise);
+  const guess = round2(subtotal - target / (1 + gst.rate / 100));
+  const grand = (d: number) => {
+    const ratio = subtotal > 0 ? (subtotal - d) / subtotal : 0;
+    return round2(subtotal - d + round2(totals.reduce((a, t) => a + round2(t * ratio * (gst.rate / 100)), 0)));
+  };
+  for (const step of [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5]) {
+    const d = round2(guess + step / 100);
+    if (d >= 0 && d <= subtotal && Math.abs(grand(d) - target) < 0.005) return d;
+  }
+  return Math.min(Math.max(guess, 0), subtotal);
+}
+
+export function invoiceNotes(o: ShopOrder, gst: ShopGst = NO_GST) {
   const where =
     o.fulfilment === 'pickup' ? 'Pickup at a stall' : `Deliver to: ${[o.address.line, o.address.city, o.address.state, o.address.pincode].filter(Boolean).join(', ')}`;
   return [
@@ -87,6 +115,7 @@ export function invoiceNotes(o: ShopOrder) {
     o.offers.length ? `Offers: ${o.offers.map((x) => x.name).join('; ')}` : '',
     o.customerNote ? `Customer note: ${o.customerNote}` : '',
     o.pageUrl ? `Order page: ${o.pageUrl}` : '',
+    gst.rate > 0 ? `Shop prices include GST at ${gst.rate}%` : '',
   ]
     .filter(Boolean)
     .join('\n');
@@ -119,7 +148,7 @@ async function upsertCustomer(o: ShopOrder) {
 }
 
 /** Bring one order into InWoice. Safe to run again for the same order. */
-export async function applyShopOrder(o: ShopOrder): Promise<'created' | 'updated' | 'unchanged' | 'skipped'> {
+export async function applyShopOrder(o: ShopOrder): Promise<'created' | 'updated' | 'unchanged' | 'skipped' | 'attention'> {
   let inv = await prisma.invoice.findUnique({ where: { shopOrderRef: o.number } });
 
   if (!inv) {
@@ -128,6 +157,8 @@ export async function applyShopOrder(o: ShopOrder): Promise<'created' | 'updated
     // A confirmed order shows up in the feed again because its updatedAt changes.
     if (o.status === 'new' || o.status === 'cancelled') return 'skipped';
     const customer = await upsertCustomer(o);
+    const settings = await getSettings();
+    const gst: ShopGst = { rate: settings.shopGstRate, hsnCode: settings.shopHsnCode };
     await prisma.activity.create({
       data: {
         customerId: customer.id,
@@ -143,11 +174,12 @@ export async function applyShopOrder(o: ShopOrder): Promise<'created' | 'updated
         customerId: customer.id,
         date: new Date(o.createdAt),
         dueDate: new Date(o.createdAt), // shop orders are paid before they're sent
-        placeOfSupply: null,
-        discount: rupees(o.discountPaise),
+        // GST place of supply: where it's delivered to, or your own state for a stall pickup.
+        placeOfSupply: (o.fulfilment === 'pickup' ? settings.state : o.address.state) || null,
+        discount: invoiceDiscount(o, gst),
         shippingCost: 0,
-        notes: invoiceNotes(o),
-        items: invoiceLines(o),
+        notes: invoiceNotes(o, gst),
+        items: invoiceLines(o, gst),
       },
       { shopOrderRef: o.number },
     );
@@ -155,17 +187,36 @@ export async function applyShopOrder(o: ShopOrder): Promise<'created' | 'updated
     await followStatus(inv.id, o);
     return 'created';
   }
-  return (await followStatus(inv.id, o)) ? 'updated' : 'unchanged';
+  const r = await followStatus(inv.id, o);
+  return r === true ? 'updated' : r === false ? 'unchanged' : r;
 }
 
+export const CANCELLED_AFTER_PAYMENT = 'SHOP_CANCELLED_PAID';
+
 /** Move the invoice along with the order's status. Returns true if anything changed. */
-async function followStatus(invoiceId: string, o: ShopOrder): Promise<boolean> {
+async function followStatus(invoiceId: string, o: ShopOrder): Promise<boolean | 'attention'> {
   let inv = await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
   if (inv.status === 'CANCELLED') return false;
   if (o.status === 'cancelled') {
-    if (inv.amountPaid > 0) return false; // money was taken: sort it out by hand (credit note)
-    await cancelInvoice(inv.id);
-    return true;
+    if (inv.amountPaid <= 0) {
+      await cancelInvoice(inv.id);
+      return true;
+    }
+    // Money was taken, so the invoice can't just be cancelled: flag it (once) for a refund
+    // and a credit note. It stays listed in Settings › Shop until that's done.
+    const seen = await prisma.activity.findFirst({ where: { eventType: CANCELLED_AFTER_PAYMENT, referenceId: o.number }, select: { id: true } });
+    if (seen) return false;
+    await prisma.activity.create({
+      data: {
+        customerId: inv.customerId,
+        eventType: CANCELLED_AFTER_PAYMENT,
+        title: `Shop order ${o.number} was cancelled after payment`,
+        description: `Invoice ${inv.invoiceNumber} still shows ₹${inv.amountPaid.toFixed(2)} paid. Refund the customer and issue a credit note.`,
+        referenceType: 'SHOP_ORDER',
+        referenceId: o.number,
+      },
+    });
+    return 'attention';
   }
   let changed = false;
   if (inv.status === 'DRAFT' && ISSUED_FROM.has(o.status)) {
@@ -187,16 +238,49 @@ async function followStatus(invoiceId: string, o: ShopOrder): Promise<boolean> {
   return changed;
 }
 
-export type ShopSyncResult = { skipped: string | null; created: string[]; updated: string[]; failed: { order: string; error: string }[] };
+export type ShopSyncResult = {
+  skipped: string | null;
+  created: string[];
+  updated: string[];
+  /** Orders cancelled in the shop after they were paid: refund and credit them. */
+  attention: string[];
+  failed: { order: string; error: string }[];
+};
 
-const why = (err: unknown) => (err instanceof Error ? err.message : String(err));
+/** A failed run in words the owner can act on (fetch's own errors are just "fetch failed"). */
+function why(err: unknown, shopUrl: string) {
+  if (!(err instanceof Error)) return String(err);
+  if (err.name === 'TimeoutError' || err.name === 'AbortError') return `The shop at ${shopUrl} took too long to answer. Try again in a few minutes.`;
+  if (err instanceof SyntaxError || err instanceof z.ZodError) return `The address ${shopUrl} didn't answer with an order feed. Check the shop address.`;
+  if (err instanceof TypeError && err.message === 'fetch failed') {
+    const cause = (err as { cause?: { code?: string; message?: string } }).cause;
+    if (/redirect/i.test(cause?.message ?? '')) return `The shop address ${shopUrl} redirects somewhere else. Enter the final address (as it shows in the browser).`;
+    return `Couldn't reach the shop at ${shopUrl}${cause?.code ? ` (${cause.code})` : ''}. Check the address and that the shop is online.`;
+  }
+  return err.message;
+}
+
+/** Shop orders cancelled after payment whose money hasn't been credited back yet. */
+export async function shopOrdersNeedingAttention() {
+  const flagged = await prisma.activity.findMany({ where: { eventType: CANCELLED_AFTER_PAYMENT }, select: { referenceId: true } });
+  const refs = flagged.map((f) => f.referenceId).filter((r): r is string => Boolean(r));
+  if (!refs.length) return [];
+  const invoices = await prisma.invoice.findMany({
+    where: { shopOrderRef: { in: refs }, status: { not: 'CANCELLED' } },
+    select: { id: true, invoiceNumber: true, shopOrderRef: true, amountPaid: true, amountCredited: true, customer: { select: { name: true } } },
+    orderBy: { createdAt: 'asc' },
+  });
+  return invoices
+    .filter((i) => round2(i.amountPaid - i.amountCredited) > 0.005)
+    .map((i) => ({ order: i.shopOrderRef!, invoiceId: i.id, invoiceNumber: i.invoiceNumber, customer: i.customer.name, toRefund: round2(i.amountPaid - i.amountCredited) }));
+}
 
 /**
  * One sync run. Orders are read oldest change first; the cursor only moves past an order
  * once it's in, so a failure is retried next run (and shown in Settings) instead of lost.
  */
 export async function runShopSync(opts: { force?: boolean; fetchImpl?: typeof fetch } = {}): Promise<ShopSyncResult> {
-  const out: ShopSyncResult = { skipped: null, created: [], updated: [], failed: [] };
+  const out: ShopSyncResult = { skipped: null, created: [], updated: [], attention: [], failed: [] };
   const s = await getSettings();
   if (!s.shopSyncEnabled && !opts.force) return { ...out, skipped: 'Shop sync is switched off' };
   if (!s.shopUrl || !s.shopSyncToken) return { ...out, skipped: 'Add the shop address and sync token first' };
@@ -240,6 +324,7 @@ export async function runShopSync(opts: { force?: boolean; fetchImpl?: typeof fe
         const result = await applyShopOrder(o);
         if (result === 'created') out.created.push(o.number);
         if (result === 'updated') out.updated.push(o.number);
+        if (result === 'attention') out.attention.push(o.number);
         cursor = o.updatedAt;
         await prisma.businessSettings.update({ where: { id: s.id }, data: { shopSyncCursor: cursor } });
       }
@@ -247,7 +332,7 @@ export async function runShopSync(opts: { force?: boolean; fetchImpl?: typeof fe
       cursor = body.next;
     }
   } catch (err) {
-    error = why(err);
+    error = why(err, s.shopUrl);
     out.failed.push({ order: '', error });
   }
   await prisma.businessSettings.update({

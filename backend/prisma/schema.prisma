@@ -102,6 +102,10 @@ model BusinessSettings {
   shopSyncCursor       String?
   shopSyncLastAt       DateTime?
   shopSyncLastError    String?
+  // GST already included in shop prices (0 = shop sales carry no GST), and the HSN/SAC
+  // code put on shop invoice lines.
+  shopGstRate          Float     @default(0)
+  shopHsnCode          String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 }

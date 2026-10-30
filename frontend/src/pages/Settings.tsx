@@ -1,4 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Bot, Cloud, Cpu, Download, HardDriveDownload, Lock, Plus, Power, Upload } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, Modal, PageHeader, Select, Spinner, StatusBadge, Table, Td, Textarea, Th } from '../components/ui';
 import { useToast } from '../components/toast';
@@ -494,8 +495,19 @@ interface ShopSyncResult {
   skipped: string | null;
   created: string[];
   updated: string[];
+  attention: string[];
   failed: { order: string; error: string }[];
 }
+
+interface ShopRefundDue {
+  order: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  customer: string;
+  toRefund: number;
+}
+
+const SHOP_GST_RATES = [0, 5, 12, 18, 28];
 
 function ShopTab({ settings, disabled }: { settings: SettingsT; disabled: boolean }) {
   const toast = useToast();
@@ -506,9 +518,12 @@ function ShopTab({ settings, disabled }: { settings: SettingsT; disabled: boolea
   const [token, setToken] = useState('');
   const [cleared, setCleared] = useState(false);
   const [running, setRunning] = useState(false);
+  const [gstRate, setGstRate] = useState(String(settings.shopGstRate));
+  const [hsn, setHsn] = useState(s(settings.shopHsnCode));
+  const refunds = useLoad(() => get<ShopRefundDue[]>('/settings/shop-sync/attention'), []);
 
   const submit = async () => {
-    const fields: Record<string, unknown> = { shopSyncEnabled: enabled, shopUrl: url };
+    const fields: Record<string, unknown> = { shopSyncEnabled: enabled, shopUrl: url, shopGstRate: Number(gstRate), shopHsnCode: hsn };
     if (token) fields.shopSyncToken = token;
     else if (cleared) fields.shopSyncToken = '';
     if (await save(fields, enabled ? 'Shop sync is on' : 'Saved')) {
@@ -522,8 +537,10 @@ function ShopTab({ settings, disabled }: { settings: SettingsT; disabled: boolea
     try {
       const r = await post<ShopSyncResult>('/settings/shop-sync/run');
       await refreshSettings();
+      void refunds.reload();
       if (r.skipped) toast.error(r.skipped);
       else if (r.failed.length) toast.error(r.failed.map((f) => (f.order ? `${f.order}: ${f.error}` : f.error)).join('; '));
+      else if (r.attention.length) toast.error(`Cancelled after payment: ${r.attention.join(', ')}. Refund and issue a credit note.`);
       else if (r.created.length || r.updated.length) toast.success(`${r.created.length} new order${r.created.length === 1 ? '' : 's'}, ${r.updated.length} updated`);
       else toast.success('Up to date: no new orders');
     } catch (err) {
@@ -558,7 +575,36 @@ function ShopTab({ settings, disabled }: { settings: SettingsT; disabled: boolea
           onClear={() => setCleared(true)}
           disabled={disabled}
         />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="GST included in shop prices" hint="Leave at none if you aren't GST-registered. Otherwise the tax is worked back out of each price, so invoices still total what the customer paid.">
+            <Select value={gstRate} onChange={(e) => setGstRate(e.target.value)}>
+              {SHOP_GST_RATES.map((r) => (
+                <option key={r} value={r}>
+                  {r ? `${r}%` : 'None (no GST)'}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="HSN code for shop items" hint="Printed on each shop invoice line, e.g. 4911 for printed stickers.">
+            <Input value={hsn} onChange={(e) => setHsn(e.target.value)} inputMode="numeric" maxLength={8} placeholder="4911" />
+          </Field>
+        </div>
       </fieldset>
+      {refunds.data && refunds.data.length > 0 && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="font-medium">Cancelled in the shop after payment: refund these and issue a credit note</p>
+          <ul className="mt-2 grid gap-1">
+            {refunds.data.map((r) => (
+              <li key={r.order}>
+                <Link to={`/invoices/${r.invoiceId}`} className="font-medium underline">
+                  {r.invoiceNumber}
+                </Link>{' '}
+                · {r.order} · {r.customer} · {money(r.toRefund)} to refund
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <p className="mt-4 text-sm text-slate-500">
         Last sync: {settings.shopSyncLastAt ? dateTime(settings.shopSyncLastAt) : 'never'}
         {settings.shopSyncLastError && <span className="mt-1 block text-red-600">{settings.shopSyncLastError}</span>}
