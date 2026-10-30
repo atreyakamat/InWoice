@@ -247,6 +247,32 @@ describe('shop sync', () => {
     expect(pickup.cgst + pickup.sgst).toBeCloseTo(pickup.taxAmount, 2);
 
     expect((await prisma.invoice.findUniqueOrThrow({ where: { shopOrderRef: 'SNV-GST003' } })).grandTotal).toBe(296.6);
+
+    // No shop discount, and ₹10 → ₹8.47 would come out short: still the exact total.
+    const prices = [1000, 999, 1, 8000, 4999, 33333];
+    prices.forEach((p, i) =>
+      orders.push(order(`SNV-GSTN0${i}`, { customerPhone: '9000000006', lines: [{ name: 'Item', options: [], unitPricePaise: p, qty: 4 }], discountPaise: 0, totalPaise: p * 4, updatedAt: `2026-10-26T10:0${i}:00.000Z` })),
+    );
+    await runShopSync();
+    for (const [i, p] of prices.entries()) {
+      expect((await prisma.invoice.findUniqueOrThrow({ where: { shopOrderRef: `SNV-GSTN0${i}` } })).grandTotal).toBe((p * 4) / 100);
+    }
+
+    // A spread of carts, quantities and discounts all invoice to the paisa.
+    let seed = 7;
+    const rnd = (n: number) => (seed = (seed * 48271) % 2147483647) % n;
+    const carts = Array.from({ length: 40 }, (_, i) => {
+      const lines = Array.from({ length: 1 + rnd(4) }, (_, k) => ({ name: `Item ${k}`, options: [], unitPricePaise: 1 + rnd(20000), qty: 1 + rnd(30) }));
+      const gross = lines.reduce((a, l) => a + l.unitPricePaise * l.qty, 0);
+      const discountPaise = rnd(3) ? 0 : rnd(Math.floor(gross / 4));
+      return order(`SNV-FZ${String(i).padStart(4, '0')}`, { customerPhone: '9000000007', lines, discountPaise, totalPaise: gross - discountPaise, updatedAt: `2026-10-26T11:${String(i).padStart(2, '0')}:00.000Z` });
+    });
+    orders.push(...carts);
+    expect((await runShopSync()).created).toHaveLength(40);
+    for (const c of carts) {
+      const inv = await prisma.invoice.findUniqueOrThrow({ where: { shopOrderRef: c.number } });
+      expect([c.number, inv.grandTotal]).toEqual([c.number, c.totalPaise / 100]);
+    }
     await api.put('/api/settings').set(auth).send({ shopGstRate: 0, shopHsnCode: '' });
   });
 });

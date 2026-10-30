@@ -72,38 +72,51 @@ const rupees = (paise: number) => round2(paise / 100);
 export type ShopGst = { rate: number; hsnCode: string | null };
 const NO_GST: ShopGst = { rate: 0, hsnCode: null };
 
-export function invoiceLines(o: ShopOrder, gst: ShopGst = NO_GST) {
-  return o.lines.map((l) => ({
+type InvoiceLine = { type: 'CUSTOM'; itemId: null; hsnCode: string | null; name: string; quantity: number; unitPrice: number; taxRate: number };
+
+/**
+ * Invoice lines and discount for a shop order. With GST in the prices, the pre-tax prices
+ * are rounded to paise and the tax is rounded per line (as createInvoice does), so the plain
+ * conversion can land a few paise off the shop total. The discount, a paisa or two on one
+ * line's price and, failing those, a tax-free "Round off" line make it exact.
+ */
+export function invoiceAmounts(o: ShopOrder, gst: ShopGst = NO_GST): { items: InvoiceLine[]; discount: number } {
+  const items: InvoiceLine[] = o.lines.map((l) => ({
     type: 'CUSTOM' as const,
     itemId: null,
     hsnCode: gst.hsnCode,
     name: l.options.length ? `${l.name} (${l.options.join(', ')})` : l.name,
     quantity: l.qty,
-    unitPrice: gst.rate > 0 ? round2(rupees(l.unitPricePaise) / (1 + gst.rate / 100)) : rupees(l.unitPricePaise),
+    // Rounded up, so the pre-tax lines don't fall short of the shop total.
+    unitPrice: gst.rate > 0 ? Math.ceil(l.unitPricePaise / (1 + gst.rate / 100) - 1e-6) / 100 : rupees(l.unitPricePaise),
     taxRate: gst.rate,
   }));
-}
+  if (gst.rate <= 0) return { items, discount: rupees(o.discountPaise) };
 
-/**
- * The (pre-tax) discount that makes the invoice total exactly what the shop charged.
- * Prices are rounded to paise once the GST is taken out, so the plain conversion can be a
- * few paise off; this tries the neighbouring values using the same sums as createInvoice.
- */
-export function invoiceDiscount(o: ShopOrder, gst: ShopGst = NO_GST) {
-  if (gst.rate <= 0) return rupees(o.discountPaise);
-  const totals = invoiceLines(o, gst).map((l) => round2(l.quantity * l.unitPrice));
-  const subtotal = round2(totals.reduce((a, t) => a + t, 0));
   const target = rupees(o.totalPaise);
-  const guess = round2(subtotal - target / (1 + gst.rate / 100));
-  const grand = (d: number) => {
+  const grand = (lines: InvoiceLine[], d: number) => {
+    const totals = lines.map((l) => round2(l.quantity * l.unitPrice));
+    const subtotal = round2(totals.reduce((a, t) => a + t, 0));
     const ratio = subtotal > 0 ? (subtotal - d) / subtotal : 0;
-    return round2(subtotal - d + round2(totals.reduce((a, t) => a + round2(t * ratio * (gst.rate / 100)), 0)));
+    return round2(subtotal - d + round2(totals.reduce((a, t, i) => a + round2(t * ratio * (lines[i].taxRate / 100)), 0)));
   };
-  for (const step of [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5]) {
-    const d = round2(guess + step / 100);
-    if (d >= 0 && d <= subtotal && Math.abs(grand(d) - target) < 0.005) return d;
+  const roundOff = (paise: number): InvoiceLine[] =>
+    paise ? [{ type: 'CUSTOM', itemId: null, hsnCode: null, name: 'Round off', quantity: 1, unitPrice: paise / 100, taxRate: 0 }] : [];
+
+  for (let off = 0; off <= 5; off++) {
+    for (let bump = 0; bump <= 3; bump++) {
+      for (let j = 0; j < (bump ? Math.min(items.length, 5) : 1); j++) {
+        const lines = items.map((l, i) => (i === j && bump ? { ...l, unitPrice: round2(l.unitPrice + bump / 100) } : l)).concat(roundOff(off));
+        const subtotal = round2(lines.reduce((a, l) => a + round2(l.quantity * l.unitPrice), 0));
+        const guess = round2(subtotal - off / 100 - (target - off / 100) / (1 + gst.rate / 100));
+        for (let step = -6; step <= 6; step++) {
+          const d = round2(guess + step / 100);
+          if (d >= 0 && d <= subtotal && Math.abs(grand(lines, d) - target) < 0.005) return { items: lines, discount: d };
+        }
+      }
+    }
   }
-  return Math.min(Math.max(guess, 0), subtotal);
+  return { items, discount: Math.max(0, round2(grand(items, 0) - target)) };
 }
 
 export function invoiceNotes(o: ShopOrder, gst: ShopGst = NO_GST) {
@@ -176,10 +189,9 @@ export async function applyShopOrder(o: ShopOrder): Promise<'created' | 'updated
         dueDate: new Date(o.createdAt), // shop orders are paid before they're sent
         // GST place of supply: where it's delivered to, or your own state for a stall pickup.
         placeOfSupply: (o.fulfilment === 'pickup' ? settings.state : o.address.state) || null,
-        discount: invoiceDiscount(o, gst),
+        ...invoiceAmounts(o, gst),
         shippingCost: 0,
         notes: invoiceNotes(o, gst),
-        items: invoiceLines(o, gst),
       },
       { source: 'SHOP', shopOrderRef: o.number },
     );
