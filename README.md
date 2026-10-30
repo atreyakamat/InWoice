@@ -9,13 +9,16 @@ self-hosting, and modest hardware.
 
 | Area | Features |
 |---|---|
-| **Invoicing** | Drafts → issue → partial/full payments → paid. Automatic numbering, GST split (CGST+SGST within your state, IGST across states, detected from state names or GSTINs), discounts, shipping, HSN codes. PDF with a UPI QR code that pre-fills the balance. Email with the PDF attached, WhatsApp share link, duplicate, cancel (stock restored). Overdue is computed live. |
+| **Invoicing** | Drafts → issue → partial/full payments → paid. Automatic numbering, GST split (CGST+SGST within your state, IGST across states, detected from state names or GSTINs), discounts, shipping, HSN codes. PDF with a UPI QR code that pre-fills the balance. Email straight from your own **connected Gmail** with the PDF attached, or open a ready-written email in Gmail/Outlook (optionally in a chosen browser and Chrome profile) or from InWoice with the PDF attached, WhatsApp share link, duplicate, cancel (stock restored). Overdue is computed live. |
 | **Credit notes** | Returns, post-sale discounts and corrections against issued invoices. GST is reversed at the original rates, returned goods can go back into stock, and refunds due are worked out automatically. Credit note PDFs. |
 | **GST reports** | GSTR-1 data for any month or quarter: B2B, B2C large/small, credit notes (CDNR/CDNUR), HSN summary (B2B/B2C), documents issued. CSV in the GST offline tool layout, plus a line-level sales register. GSTINs are checksum-validated. |
 | **Bills & expenses** | Supplier bills (from a purchase order or standalone) with GST split, claimable vs blocked input credit, optional stock-in, due dates from supplier terms, part payments and what you owe each supplier. Expenses (rent, salaries, utilities…) entered with or without GST. |
 | **Accounts** | Profit & loss by category and month, GSTR-3B summary (output tax, input tax credit, legal set-off order, cash payable), receivables and payables ageing, cash in/out with what falls due in the next 7/30 days, purchase register CSV. Dashboard shows profit this month and bills overdue. |
 | **Payment reminders** | Automatic emails before and after the due date on a schedule you choose (e.g. -1, 3, 7, 15 days), with the PDF and UPI QR attached. One-click manual reminders; WhatsApp messages switch to reminder wording when an invoice is overdue. |
 | **Quotes & recurring** | Quotations with PDF and email, converted to invoices in one click. Recurring invoices (weekly to yearly) created, issued and emailed by the scheduler. |
+| **Online payments** | Optional **Pay now** links through your own [YouPI-PG](https://github.com/youpi-pg/YouPI-PG) UPI gateway, in emails, WhatsApp and the portal. Payments are confirmed by signed webhook and recorded on the invoice with the UTR. |
+| **Jobs priced by size** | Sell per sq ft, sq m, metre, hour or kg as well as by the piece. A size calculator turns width × height × copies (in, cm, mm or ft) into square feet, e.g. 24 × 36 in × 2 = 12 sq ft at ₹80/sq ft, and the size prints on the invoice. Each job's area can be rounded up (to 0.1, ¼, ½ or 1 sq ft; default ¼) and a product can have a minimum charge per job (e.g. ₹150). Measured products use up raw material from their bill of materials. GST reports use the right unit codes (SQF, NOS…). |
+| **Point of sale** | Counter billing for a stall, shop or event: tap or scan items, take cash (with change), UPI QR, card, YouPI or pay later, and print an 80 mm receipt. Every sale is a normal GST invoice, so stock and reports stay right. |
 | **Customer portal** | A private link per customer to see invoices, balance and statement and download PDFs. Statements of account by PDF/email, optionally every month. |
 | **Bank & tax depth** | Bank statement CSV import with automatic matching. TDS on receipts and supplier payments. Supplier debit notes. GSTR-1 JSON for the offline tool, a GSTR-2B check against your bills, stock valuation in the P&L. |
 | **Actions (approve, then run)** | Chase overdue invoices with editable (AI-written or template) emails, create draft purchase orders for low materials, re-send expiring quotes. A monthly summary email for owners. With AI on, a bill photo or PDF fills in the bill form. |
@@ -68,9 +71,10 @@ businesses, and low-resource tuning.
 ## Tests
 
 ```bash
-npm test                         # 276 tests: API integration + unit (uses TEST_DATABASE_URL) + frontend type-check
-npm run test:unit                # 72 unit tests only: pure rules, no database, a couple of seconds
-npm --prefix frontend run e2e    # real-browser smoke test against a running instance (41 checks)
+npm test                         # 386 tests: API integration + unit (uses TEST_DATABASE_URL) + frontend type-check
+npm run test:unit                # 120 unit tests only: pure rules, no database, a couple of seconds
+npm --prefix frontend run e2e    # real-browser smoke test against a running instance (42 checks)
+npm --prefix frontend run e2e:real  # real-world walkthrough: invoices, payments, PDFs, Gmail/Outlook (25 steps: invoices, payments, PDFs, Gmail/Outlook, YouPI, point of sale, per sq ft jobs, minimum charge)
 ```
 
 See [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md), including the manual QA checklist.

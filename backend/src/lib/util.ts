@@ -79,3 +79,9 @@ export function sendCsv(res: Response, name: string, csv: string) {
   res.setHeader('Content-Disposition', `attachment; filename="${name}-${new Date().toISOString().slice(0, 10)}.csv"`);
   res.send(`﻿${csv}`);
 }
+
+/** Money for messages to people: ₹1,41,600.00 (Indian digit grouping). */
+export const moneyText = (symbol: string, n: number) => `${symbol}${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** Dates for messages to people: 06 Nov 2026. */
+export const dayText = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });

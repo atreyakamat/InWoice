@@ -77,7 +77,10 @@ export async function commitStockForInvoice(tx: Tx, invoiceId: string) {
     });
     if (!product) continue; // product deleted since the invoice was drafted
 
-    const fromStock = product.bom?.items.length ? Math.min(Math.max(product.stock, 0), qty) : qty;
+    // Measured products (sold per sq ft, metre, hour…) are made to order: no finished stock,
+    // all of it comes from the bill of materials (quantities per unit sold).
+    const counted = product.unit === 'pcs';
+    const fromStock = !counted ? 0 : product.bom?.items.length ? Math.min(Math.max(product.stock, 0), qty) : qty;
     const shortfall = qty - fromStock;
     if (fromStock > 0) {
       await tx.product.update({ where: { id: productId }, data: { stock: { decrement: fromStock } } });
@@ -92,7 +95,7 @@ export async function commitStockForInvoice(tx: Tx, invoiceId: string) {
           quantity: -used,
           referenceType: 'INVOICE',
           referenceId: invoice.id,
-          notes: `Made to order: ${shortfall} x ${product.name} (${invoice.invoiceNumber})`,
+          notes: `Made to order: ${counted ? shortfall : `${Number(shortfall.toFixed(3))} ${product.unit}`} x ${product.name} (${invoice.invoiceNumber})`,
         });
         log.materials.push({ inventoryItemId: b.inventoryItemId, quantity: used });
       }

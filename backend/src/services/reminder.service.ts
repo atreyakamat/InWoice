@@ -1,4 +1,5 @@
 import prisma from '../lib/prisma';
+import { moneyText, dayText } from '../lib/util';
 import { badRequest, notFound } from '../lib/errors';
 import { balanceOf, invoiceInclude } from './invoice.service';
 import { renderInvoicePdf } from './pdf.service';
@@ -56,10 +57,10 @@ export async function dueReminders(now = new Date()) {
 function reminderText(opts: { name: string; number: string; amount: string; due: Date; days: number; upi: string | null; portal: string | null; business: string; thanks: string | null }) {
   const when =
     opts.days < 0
-      ? `is due on ${opts.due.toDateString()}`
+      ? `is due on ${dayText(opts.due)}`
       : opts.days === 0
         ? 'is due today'
-        : `was due on ${opts.due.toDateString()} (${opts.days} day${opts.days === 1 ? '' : 's'} ago)`;
+        : `was due on ${dayText(opts.due)} (${opts.days} day${opts.days === 1 ? '' : 's'} ago)`;
   return [
     `Hi ${opts.name},`,
     '',
@@ -84,7 +85,7 @@ export async function sendReminder(invoiceId: string, opts: { to?: string; step?
   if (!to) throw badRequest('Customer has no email address. Add one or enter a recipient.');
 
   const days = inv.dueDate ? daysFromDue(inv.dueDate, new Date()) : 0;
-  const amount = `${settings.currencySymbol}${balance.toFixed(2)}`;
+  const amount = moneyText(settings.currencySymbol, balance);
   const pdf = await renderInvoicePdf(inv, settings);
   await sendMail({
     to,

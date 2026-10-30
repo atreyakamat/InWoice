@@ -22,6 +22,10 @@ import auditRoutes from './routes/audit.routes';
 import platformRoutes from './routes/platform.routes';
 import bankRoutes from './routes/bank.routes';
 import actionsRoutes from './routes/actions.routes';
+import mailRoutes from './routes/mail.routes';
+import googleRoutes from './routes/google.routes';
+import posRoutes from './routes/pos.routes';
+import { handleWebhook } from './services/youpi.service';
 import { tenantResolver } from './middlewares/tenant';
 import { auditTrail } from './services/audit.service';
 import { packsRouter, productsRouter } from './routes/catalog.routes';
@@ -62,6 +66,10 @@ app.use(
   }),
 );
 app.use(cors(config.corsOrigins.length ? { origin: config.corsOrigins } : { origin: config.isProd ? false : true }));
+// Gateway webhooks need the exact bytes for the signature, so they come before the JSON parser.
+app.post('/api/payments/youpi/webhook', express.raw({ type: () => true, limit: '256kb' }), tenantResolver, async (req: Request, res: Response) => {
+  res.json(await handleWebhook(Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0), req.headers));
+});
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/health', async (_req: Request, res: Response) => {
@@ -94,6 +102,9 @@ app.use('/api/portal', portalRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/bank', bankRoutes);
 app.use('/api/actions', actionsRoutes);
+app.use('/api/mail', mailRoutes);
+app.use('/api/google', googleRoutes);
+app.use('/api/pos', posRoutes);
 app.use('/api/products', productsRouter);
 app.use('/api/packs', packsRouter);
 app.use('/api/inventory', inventoryRouter);

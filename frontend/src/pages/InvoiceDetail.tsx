@@ -29,7 +29,6 @@ import {
   StatusBadge,
   Table,
   Td,
-  Textarea,
   Th,
   useConfirm,
 } from '../components/ui';
@@ -37,6 +36,10 @@ import { useToast } from '../components/toast';
 import { CreditNoteModal, CreditNotesCard } from '../components/CreditNotes';
 import { del, downloadFile, get, http, openPdf, post } from '../lib/api';
 import { useLoad } from '../lib/useLoad';
+import { MailComposer } from '../components/MailComposer';
+import { OnlinePaymentCard } from '../components/OnlinePaymentCard';
+import { qtyText, unitLabel, unitOf } from '../lib/units';
+import { useAuth } from '../context/AuthContext';
 import { date, isoDate, money, titleCase } from '../lib/format';
 import type { Invoice } from '../lib/types';
 
@@ -53,8 +56,8 @@ export default function InvoiceDetail() {
   const [payOpen, setPayOpen] = useState(false);
   const [pay, setPay] = useState({ amount: '', tdsAmount: '', paymentMethod: 'UPI', paymentDate: isoDate(new Date()), referenceId: '', notes: '' });
   const [mailOpen, setMailOpen] = useState(false);
+  const { settings } = useAuth();
   const [cnOpen, setCnOpen] = useState(false);
-  const [mail, setMail] = useState({ to: '', subject: '', message: '' });
 
   if (loading && !inv) return <Spinner />;
   if (error) return <ErrorBox message={error} onRetry={reload} />;
@@ -162,24 +165,6 @@ export default function InvoiceDetail() {
     });
   };
 
-  const openMail = () => {
-    setMail({ to: inv.customer.email ?? '', subject: '', message: '' });
-    setMailOpen(true);
-  };
-
-  const submitMail = (e: FormEvent) => {
-    e.preventDefault();
-    void run('mail', async () => {
-      const res = await http.post(`/invoices/${id}/send`, {
-        to: mail.to.trim() || undefined,
-        subject: mail.subject.trim() || undefined,
-        message: mail.message.trim() || undefined,
-      });
-      setMailOpen(false);
-      toast.success(res.data.message ?? 'Invoice emailed');
-      await reload();
-    });
-  };
 
   return (
     <div>
@@ -228,7 +213,7 @@ export default function InvoiceDetail() {
           </Button>
           {!isCancelled && (
             <>
-              <Button variant="secondary" onClick={openMail}>
+              <Button variant="secondary" onClick={() => setMailOpen(true)}>
                 <Mail size={15} /> Email
               </Button>
               <Button variant="secondary" onClick={whatsapp} loading={busy === 'whatsapp'}>
@@ -288,8 +273,15 @@ export default function InvoiceDetail() {
                       )}
                     </Td>
                     <Td className="text-slate-500">{item.hsnCode ?? '—'}</Td>
-                    <Td className="text-right tabular-nums">{item.quantity}</Td>
-                    <Td className="whitespace-nowrap text-right tabular-nums">{money(item.unitPrice)}</Td>
+                    <Td className="whitespace-nowrap text-right tabular-nums">
+                      {qtyText(item.quantity, item.unit)}
+                      {item.details && <div className="text-xs font-normal text-slate-500">{item.details}</div>}
+                      {item.minCharge && <div className="text-xs font-normal text-amber-700">Minimum charge</div>}
+                    </Td>
+                    <Td className="whitespace-nowrap text-right tabular-nums">
+                      {money(item.unitPrice)}
+                      {unitOf(item.unit) !== 'pcs' && <span className="text-xs text-slate-500">/{unitLabel(item.unit)}</span>}
+                    </Td>
                     <Td className="text-right tabular-nums">{item.taxRate}%</Td>
                     <Td className="whitespace-nowrap text-right tabular-nums">{money(item.total)}</Td>
                   </tr>
@@ -390,6 +382,8 @@ export default function InvoiceDetail() {
             )}
           </Card>
 
+          {settings?.youpiEnabled && !isDraft && <OnlinePaymentCard inv={inv} onPaid={setData} />}
+
           <Card title="Customer">
             <div className="text-sm">
               <Link to={`/customers/${inv.customerId}`} className="font-medium text-brand-600 hover:underline">
@@ -470,36 +464,7 @@ export default function InvoiceDetail() {
         </form>
       </Modal>
 
-      <Modal
-        open={mailOpen}
-        onClose={() => setMailOpen(false)}
-        title="Email invoice"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setMailOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" form="mail-form" loading={busy === 'mail'}>
-              <Send size={15} /> Send
-            </Button>
-          </>
-        }
-      >
-        <form id="mail-form" onSubmit={submitMail} className="space-y-3">
-          <Field label="To" hint={inv.customer.email ? undefined : 'This customer has no email on file — enter one.'}>
-            <Input type="email" value={mail.to} onChange={(e) => setMail({ ...mail, to: e.target.value })} placeholder="customer@example.com" />
-          </Field>
-          <Field label="Subject" hint="Leave blank for the default subject">
-            <Input value={mail.subject} onChange={(e) => setMail({ ...mail, subject: e.target.value })} />
-          </Field>
-          <Field label="Message" hint="Leave blank for the default message with amount due and UPI details">
-            <Textarea value={mail.message} onChange={(e) => setMail({ ...mail, message: e.target.value })} />
-          </Field>
-          <p className="text-xs text-slate-500">
-            The PDF is attached automatically.{isDraft ? ' Sending a draft issues it.' : ''} Requires email settings (Settings → Email).
-          </p>
-        </form>
-      </Modal>
+      <MailComposer open={mailOpen} onClose={() => setMailOpen(false)} kind="invoices" id={id!} onDone={reload} />
       {cnOpen && <CreditNoteModal inv={inv} open={cnOpen} onClose={() => setCnOpen(false)} onSaved={setData} />}
       {confirm.dialog}
     </div>

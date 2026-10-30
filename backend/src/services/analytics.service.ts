@@ -71,7 +71,7 @@ export async function getDashboard() {
     }),
     prisma.$queryRaw<{ id: string; name: string; stock: number; threshold: number }[]>`
       SELECT id, name, stock, "lowStockThreshold" AS threshold FROM "Product"
-      WHERE status = 'ACTIVE' AND stock <= "lowStockThreshold" ORDER BY stock ASC LIMIT 10`,
+      WHERE status = 'ACTIVE' AND unit = 'pcs' AND stock <= "lowStockThreshold" ORDER BY stock ASC LIMIT 10`,
     prisma.$queryRaw<{ id: string; name: string; stock: number; unit: string; reorderLevel: number }[]>`
       SELECT id, name, "currentStock" AS stock, unit, "reorderLevel" FROM "InventoryItem"
       WHERE "isActive" = true AND "currentStock" <= "reorderLevel" ORDER BY "currentStock" ASC LIMIT 10`,
@@ -141,7 +141,7 @@ export async function getSnapshot() {
       }),
       prisma.product.count({ where: { status: 'ACTIVE' } }),
       prisma.$queryRaw<{ id: string; name: string; stock: number }[]>`
-        SELECT id, name, stock FROM "Product" WHERE status = 'ACTIVE' AND stock <= "lowStockThreshold" ORDER BY stock ASC LIMIT 20`,
+        SELECT id, name, stock FROM "Product" WHERE status = 'ACTIVE' AND unit = 'pcs' AND stock <= "lowStockThreshold" ORDER BY stock ASC LIMIT 20`,
       prisma.inventoryItem.count({ where: { isActive: true } }),
       prisma.$queryRaw<{ id: string; name: string; stock: number; unit: string }[]>`
         SELECT id, name, "currentStock" AS stock, unit FROM "InventoryItem"

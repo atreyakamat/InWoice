@@ -21,7 +21,7 @@ export const creditNoteInput = z.object({
     .array(
       z.object({
         invoiceItemId: z.string().uuid(),
-        quantity: z.coerce.number().int().min(0).default(0),
+        quantity: z.coerce.number().min(0).default(0),
         // Taxable value to credit. Defaults to quantity x the line's discounted unit price.
         amount: z.coerce.number().min(0).optional(),
       }),
@@ -102,11 +102,12 @@ export async function createCreditNote(invoiceId: string, input: CreditNoteInput
       if (!item) throw badRequest('A credit note line does not belong to this invoice');
       const done = prior.get(item.id) ?? { qty: 0, value: 0, tax: 0 };
       if (req.quantity > item.quantity - done.qty) {
-        throw badRequest(`"${item.name}": only ${item.quantity - done.qty} left to credit`);
+        throw badRequest(`"${item.name}": only ${Number((item.quantity - done.qty).toFixed(3))} left to credit`);
       }
       const lineValue = round2(item.total * discountRatio);
       const remaining = round2(lineValue - done.value);
-      const taxableValue = round2(req.amount ?? req.quantity * item.unitPrice * discountRatio);
+      // The returned share of what the line cost (also right for lines billed at a minimum charge).
+      const taxableValue = round2(req.amount ?? (req.quantity >= item.quantity - done.qty - 1e-9 ? remaining : (lineValue * req.quantity) / item.quantity));
       if (taxableValue > remaining + 0.005) {
         throw badRequest(`"${item.name}": at most ${remaining.toFixed(2)} (before tax) can still be credited`);
       }
@@ -156,7 +157,8 @@ export async function createCreditNote(invoiceId: string, input: CreditNoteInput
             ? (await tx.packItem.findMany({ where: { packId: r.itemId } })).map((p) => ({ productId: p.productId, quantity: p.quantity * r.quantity }))
             : [{ productId: r.itemId, quantity: r.quantity }];
         for (const c of components) {
-          const updated = await tx.product.updateMany({ where: { id: c.productId }, data: { stock: { increment: c.quantity } } });
+          // Only counted products go back on the shelf; a returned 2 sq ft print does not.
+          const updated = await tx.product.updateMany({ where: { id: c.productId, unit: 'pcs' }, data: { stock: { increment: c.quantity } } });
           if (updated.count) log.products.push(c);
         }
       }

@@ -10,10 +10,18 @@ export interface PreviewLine {
   quantity: number;
   unitPrice: number;
   taxRate: number;
+  /** The product's minimum charge per line (before GST), if any. */
+  minCharge?: number | null;
 }
 
+/** A line's amount before discount and tax, raised to its minimum charge if it has one. */
+export const lineAmount = (l: PreviewLine) => {
+  const raw = round2(l.quantity * round2(l.unitPrice));
+  return l.minCharge && l.minCharge > 0 && raw < round2(l.minCharge) ? round2(l.minCharge) : raw;
+};
+
 export function previewDocument(lines: PreviewLine[], opts: { discount?: number; shippingCost?: number; interState: boolean }) {
-  const totals = lines.map((l) => round2(l.quantity * round2(l.unitPrice)));
+  const totals = lines.map(lineAmount);
   const subtotal = round2(totals.reduce((s, t) => s + t, 0));
   const discount = Math.min(round2(opts.discount ?? 0), subtotal);
   const ratio = subtotal > 0 ? (subtotal - discount) / subtotal : 0;

@@ -23,6 +23,10 @@ model User {
   totpEnabled    Boolean         @default(false)
   recoveryCodes  String? // JSON array of SHA-256 hashes of unused recovery codes
   lastLoginAt    DateTime?
+  // Gmail connected by this user (Google OAuth, gmail.send scope only): send as them, PDF attached.
+  gmailAddress      String?
+  gmailRefreshToken String? // never sent to the browser
+  gmailConnectedAt  DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   passwordResets PasswordReset[]
@@ -33,6 +37,8 @@ model BusinessSettings {
   id                   String    @id @default(uuid())
   businessName         String
   logoUrl              String?
+  signatureUrl         String? // PNG/JPEG data URL printed above "Authorised Signatory"
+  areaRoundUp          Float     @default(0.25) // size calculator rounds each job's area up to this step (0 = exact)
   address              String?
   state                String? // Used for GST: same state => CGST+SGST, else IGST
   email                String?
@@ -92,6 +98,19 @@ model BusinessSettings {
   aiModel              String?
   aiApiKey             String?
   ollamaUrl            String?
+  // YouPI-PG (self-hosted UPI gateway): online "Pay now" links, confirmed by signed webhook.
+  youpiEnabled         Boolean   @default(false)
+  youpiApiUrl          String?
+  youpiMerchantId      String?
+  youpiWebhookSecret   String?
+  // Open Gmail/Outlook in a chosen browser (and Chrome/Edge profile) when InWoice runs on this computer.
+  mailBrowser          String?
+  mailBrowserProfile   String?
+  // Google OAuth client for "Connect Gmail" (overrides GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).
+  googleClientId       String?
+  googleClientSecret   String?
+  // Automatic emails (reminders, statements, summaries) go out through this user's Gmail; null = SMTP.
+  autoMailUserId       String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 }
@@ -160,6 +179,10 @@ model Product {
   costPrice         Float              @default(0)
   hsnCode           String?
   taxRate           Float? // null => use business default
+  // pcs = counted stock. Any other unit (sqft, m, hrs…) is made to order: no finished stock,
+  // its bill of materials (per unit) is used up on each sale instead.
+  unit              String             @default("pcs")
+  minCharge         Float? // smallest amount (before GST) billed for one job/line, e.g. ₹150
   stock             Int                @default(0)
   lowStockThreshold Int                @default(5)
   imageUrl          String?
@@ -208,6 +231,7 @@ model Invoice {
   date           DateTime          @default(now())
   dueDate        DateTime?
   placeOfSupply  String?
+  source         String? // POS for counter sales; null for invoices made in the editor
   subtotal       Float
   discount       Float             @default(0)
   taxAmount      Float             @default(0)
@@ -232,6 +256,7 @@ model Invoice {
   updatedAt      DateTime          @updatedAt
   items          InvoiceItem[]
   payments       Payment[]
+  onlinePayments OnlinePayment[]
   files          File[]
   fulfillment    Fulfillment?
   creditNotes    CreditNote[]
@@ -249,7 +274,10 @@ model InvoiceItem {
   itemId    String? // ID of Product or Pack (null for CUSTOM lines)
   name      String
   hsnCode   String?
-  quantity  Int
+  quantity  Float
+  unit      String  @default("pcs") // pcs, sqft, sqm, m, ft, hrs, kg… (see lib/units.ts)
+  details   String? // e.g. "24 × 36 in × 2" for jobs priced by area
+  minCharge Float? // set when the product's minimum charge raised this line's total
   unitPrice Float
   taxRate   Float   @default(0)
   taxAmount Float   @default(0)
@@ -298,13 +326,34 @@ model CreditNoteItem {
   invoiceItemId String
   name          String
   hsnCode       String?
-  quantity      Int        @default(0) // 0 for value-only credits (e.g. post-sale discount)
+  quantity      Float      @default(0) // 0 for value-only credits (e.g. post-sale discount)
   taxableValue  Float
   taxRate       Float      @default(0)
   taxAmount     Float      @default(0)
 
   @@index([creditNoteId])
   @@index([invoiceItemId])
+}
+
+/// An online payment attempt through a gateway (YouPI-PG). Becomes a Payment when confirmed.
+model OnlinePayment {
+  id               String   @id @default(uuid())
+  invoiceId        String
+  invoice          Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  provider         String   @default("YOUPI")
+  orderId          String   @unique // our id sent to the gateway
+  gatewayPaymentId String?
+  amount           Float
+  status           String   @default("ACTIVE") // ACTIVE, SUCCESS, FAILED, EXPIRED, CANCELLED
+  checkoutUrl      String?
+  utr              String?
+  paymentId        String? // the Payment recorded on the invoice
+  note             String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([invoiceId])
+  @@index([status, createdAt])
 }
 
 model Payment {
@@ -788,7 +837,10 @@ model QuoteItem {
   itemId    String?
   name      String
   hsnCode   String?
-  quantity  Int
+  quantity  Float
+  unit      String  @default("pcs") // pcs, sqft, sqm, m, ft, hrs, kg… (see lib/units.ts)
+  details   String? // e.g. "24 × 36 in × 2" for jobs priced by area
+  minCharge Float? // set when the product's minimum charge raised this line's total
   unitPrice Float
   taxRate   Float   @default(0)
   taxAmount Float   @default(0)
@@ -837,7 +889,9 @@ model RecurringInvoiceItem {
   itemId      String?
   name        String?
   hsnCode     String?
-  quantity    Int
+  quantity    Float
+  unit        String?
+  details     String?
   unitPrice   Float? // null = current catalog price at the time of each run
   taxRate     Float?
   sortOrder   Int              @default(0)

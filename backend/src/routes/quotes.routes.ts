@@ -17,7 +17,7 @@ import {
   withQuoteDerived,
 } from '../services/quote.service';
 import { withDerived } from '../services/invoice.service';
-import { emailQuote } from '../services/documents.service';
+import { composeQuote, emailQuote } from '../services/documents.service';
 import { renderQuotePdf } from '../services/pdf.service';
 import { getSettings } from '../services/settings.service';
 
@@ -101,9 +101,18 @@ router.get('/:id/pdf', async (req, res) => {
   res.send(await renderQuotePdf(q, settings));
 });
 
+/** Prepare the quote email for the user's own Gmail/Outlook (no SMTP needed). */
+router.get('/:id/compose', async (req, res) => {
+  res.json({ success: true, data: await composeQuote(param(req.params.id), requestOrigin(req)) });
+});
+/** The user is opening it in their mail app: issue a draft and note it on the customer. */
+router.post('/:id/compose', async (req, res) => {
+  res.json({ success: true, data: await composeQuote(param(req.params.id), requestOrigin(req), true) });
+});
+
 router.post('/:id/send', async (req, res) => {
-  const body = z.object({ to: z.string().trim().email().optional(), subject: z.string().optional(), message: z.string().optional() }).parse(req.body ?? {});
-  const { to } = await emailQuote(param(req.params.id), { ...body, requestOrigin: requestOrigin(req) });
+  const body = z.object({ to: z.string().trim().email().optional(), subject: z.string().optional(), message: z.string().optional(), via: z.enum(['default', 'gmail']).default('default') }).parse(req.body ?? {});
+  const { to } = await emailQuote(param(req.params.id), { ...body, requestOrigin: requestOrigin(req), fromUserId: body.via === 'gmail' ? req.user!.id : undefined });
   res.json({ success: true, message: `Quote emailed to ${to}`, data: withQuoteDerived(await loadQuote(param(req.params.id))) });
 });
 

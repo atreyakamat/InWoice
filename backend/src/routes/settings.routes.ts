@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { badRequest } from '../lib/errors';
-import { optDate, optGstin, optStr } from '../lib/util';
+import { optDate, optGstin, optStr, requestOrigin } from '../lib/util';
 import { authenticate, requireAdmin } from '../middlewares/auth';
-import { getSettings, toPublicSettings } from '../services/settings.service';
+import { getSettings, publicBaseUrl, toPublicSettings } from '../services/settings.service';
+import { testYoupi } from '../services/youpi.service';
 import { CLAUDE_MODELS, generate, getAiConfig, isAiEnabled, type AiProvider } from '../services/ai.service';
 import { isEmailConfigured, sendMail } from '../services/email.service';
 import { dueReminders, parseReminderDays, runReminders } from '../services/reminder.service';
@@ -17,6 +18,14 @@ const MAX_LOGO_CHARS = 700_000; // ~500 KB image as a data URL
 
 const settingsInput = z.object({
   businessName: z.string().trim().min(1).optional(),
+  areaRoundUp: z.coerce.number().refine((v) => [0, 0.1, 0.25, 0.5, 1].includes(v), 'Round up to 0 (exact), 0.1, 0.25, 0.5 or 1').optional(),
+  signatureUrl: z
+    .string()
+    .max(MAX_LOGO_CHARS, 'Signature image is too large (max ~500 KB)')
+    .refine((v) => v === '' || /^data:image\/(png|jpe?g);base64,/.test(v), 'Signature must be a PNG/JPEG image')
+    .optional()
+    .nullable()
+    .transform((v) => (v === undefined ? undefined : v ? v : null)),
   logoUrl: z
     .string()
     .max(MAX_LOGO_CHARS, 'Logo is too large (max ~500 KB)')
@@ -83,14 +92,32 @@ const settingsInput = z.object({
   aiModel: optStr,
   aiApiKey: z.string().optional(),
   ollamaUrl: optStr,
+  youpiEnabled: z.boolean().optional(),
+  youpiApiUrl: z
+    .union([z.literal(''), z.string().trim().url('Enter the full gateway address, e.g. https://pay.mybusiness.in')])
+    .optional()
+    .nullable()
+    .transform((v) => (v === undefined ? undefined : v ? v.replace(/\/+$/, '') : null)),
+  youpiMerchantId: optStr,
+  youpiWebhookSecret: z.string().optional(),
+  mailBrowser: optStr,
+  googleClientId: optStr,
+  googleClientSecret: z.string().optional(),
+  autoMailUserId: optStr,
+  mailBrowserProfile: optStr,
 });
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   const s = await getSettings();
   res.json({
     success: true,
     data: toPublicSettings(s),
-    meta: { aiEnabled: await isAiEnabled(), emailConfigured: await isEmailConfigured(), claudeModels: CLAUDE_MODELS },
+    meta: {
+      aiEnabled: await isAiEnabled(),
+      emailConfigured: await isEmailConfigured(),
+      claudeModels: CLAUDE_MODELS,
+      youpiWebhookUrl: `${(await publicBaseUrl(requestOrigin(req))) ?? requestOrigin(req)}/api/payments/youpi/webhook`,
+    },
   });
 });
 
@@ -98,12 +125,22 @@ router.put('/', requireAdmin, async (req, res) => {
   const input = settingsInput.parse(req.body);
   const s = await getSettings();
   const data: Record<string, unknown> = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
-  for (const secret of ['smtpPassword', 'aiApiKey', 's3SecretKey'] as const) {
+  if (input.autoMailUserId) {
+    const u = await prisma.user.findUnique({ where: { id: input.autoMailUserId }, select: { isActive: true, gmailRefreshToken: true } });
+    if (!u?.isActive || !u.gmailRefreshToken) throw badRequest('That person has not connected their Gmail');
+  }
+  for (const secret of ['smtpPassword', 'aiApiKey', 's3SecretKey', 'youpiWebhookSecret', 'googleClientSecret'] as const) {
     if (input[secret] === undefined) delete data[secret];
     else data[secret] = input[secret].trim() === '' ? null : input[secret].trim();
   }
   const updated = await prisma.businessSettings.update({ where: { id: s.id }, data });
   res.json({ success: true, data: toPublicSettings(updated) });
+});
+
+/** Check the YouPI gateway answers, with the saved or proposed (unsaved) details. */
+router.post('/test-youpi', requireAdmin, async (req, res) => {
+  const body = z.object({ youpiApiUrl: optStr, youpiMerchantId: optStr, youpiWebhookSecret: z.string().optional() }).parse(req.body ?? {});
+  res.json({ success: true, data: await testYoupi({ apiUrl: body.youpiApiUrl ?? undefined, merchantId: body.youpiMerchantId ?? undefined, secret: body.youpiWebhookSecret || undefined }) });
 });
 
 /** Send a tiny prompt through the selected (or proposed, unsaved) AI provider. */

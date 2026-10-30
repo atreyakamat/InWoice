@@ -8,6 +8,7 @@ import { runAsTenant } from '../lib/tenancy';
 import { accountState, listTenants } from './platform.service';
 import { takeStockSnapshot } from './accounts.service';
 import { runOwnerDigest } from './digest.service';
+import { syncPending } from './youpi.service';
 import { reportError } from '../lib/alerts';
 import prisma from '../lib/prisma';
 
@@ -79,6 +80,12 @@ async function runJobs(label: string, active: boolean) {
     if (r.sent.length || r.failed.length) log('statements', `sent ${r.sent.length}${r.failed.length ? `, failed ${r.failed.length}` : ''}`);
   } catch (err) {
     fail('statements', err);
+  }
+  try {
+    const r = await syncPending();
+    if (r.updated) log('payments', `updated ${r.updated} online payment(s) from the gateway`);
+  } catch (err) {
+    fail('payments', err);
   }
   try {
     const r = await runOwnerDigest();

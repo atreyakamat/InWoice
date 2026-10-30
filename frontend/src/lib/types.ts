@@ -18,6 +18,8 @@ export interface Settings {
   id: string;
   businessName: string;
   logoUrl: string | null;
+  signatureUrl: string | null;
+  areaRoundUp: number;
   address: string | null;
   state: string | null;
   email: string | null;
@@ -57,6 +59,15 @@ export interface Settings {
   quoteValidityDays: number;
   statementsEnabled: boolean;
   ownerDigestEnabled: boolean;
+  youpiEnabled: boolean;
+  youpiApiUrl: string | null;
+  youpiMerchantId: string | null;
+  youpiWebhookSecretSet: boolean;
+  mailBrowser: string | null;
+  mailBrowserProfile: string | null;
+  googleClientId: string | null;
+  googleClientSecretSet: boolean;
+  autoMailUserId: string | null;
   appUrl: string | null;
   lockedUntil: string | null;
   s3Endpoint: string | null;
@@ -96,6 +107,8 @@ export interface Product {
   costPrice: number;
   hsnCode: string | null;
   taxRate: number | null;
+  unit: string;
+  minCharge: number | null;
   stock: number;
   lowStockThreshold: number;
   status: 'ACTIVE' | 'ARCHIVED';
@@ -131,6 +144,9 @@ export interface InvoiceItem {
   name: string;
   hsnCode: string | null;
   quantity: number;
+  unit: string;
+  details: string | null;
+  minCharge: number | null;
   unitPrice: number;
   taxRate: number;
   taxAmount: number;
@@ -420,6 +436,9 @@ export interface QuoteItem {
   name: string;
   hsnCode: string | null;
   quantity: number;
+  unit: string;
+  details: string | null;
+  minCharge: number | null;
   unitPrice: number;
   taxRate: number;
   taxAmount: number;

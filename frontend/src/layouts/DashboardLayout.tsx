@@ -5,6 +5,7 @@ import {
   Boxes,
   History,
   ListChecks,
+  Store,
   type LucideIcon,
   FileSignature,
   Repeat,
@@ -52,6 +53,7 @@ const NAV: { section: string; items: NavItem[] }[] = [
     items: [
       { name: 'Dashboard', path: '/', icon: LayoutDashboard, end: true, area: 'insights' },
       { name: 'Quotes', path: '/quotes', icon: FileSignature, area: 'sales' },
+      { name: 'Point of sale', path: '/pos', icon: Store, area: 'sales' },
       { name: 'Invoices', path: '/invoices', icon: FileText, area: 'sales' },
       { name: 'Recurring', path: '/recurring', icon: Repeat, area: 'sales' },
       { name: 'Customers', path: '/customers', icon: Users, area: 'sales' },

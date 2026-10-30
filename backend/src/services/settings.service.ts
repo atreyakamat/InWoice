@@ -10,7 +10,7 @@ export async function getSettings(): Promise<BusinessSettings> {
   return prisma.businessSettings.create({ data: { businessName: 'My Business' } });
 }
 
-const SECRET_FIELDS = ['smtpPassword', 'aiApiKey', 's3SecretKey'] as const;
+const SECRET_FIELDS = ['smtpPassword', 'aiApiKey', 's3SecretKey', 'youpiWebhookSecret', 'googleClientSecret'] as const;
 
 /** Settings safe to send to the browser: secrets are replaced by a "configured" flag. */
 export function toPublicSettings(s: BusinessSettings) {

@@ -3,6 +3,8 @@ import { Bot, Cloud, Cpu, Download, HardDriveDownload, Lock, Plus, Power, Upload
 import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, Modal, PageHeader, Select, Spinner, StatusBadge, Table, Td, Textarea, Th } from '../components/ui';
 import { useToast } from '../components/toast';
 import { OffsiteBackupCard, PeriodLockCard, TwoFactorCard } from '../components/SecuritySettings';
+import { MailBrowserCard, YoupiCard } from '../components/OnlinePaymentSettings';
+import { GmailCard } from '../components/GmailCard';
 import { useAuth } from '../context/AuthContext';
 import { useLoad } from '../lib/useLoad';
 import { downloadFile, errorMessage, get, http, patch, post, put } from '../lib/api';
@@ -32,7 +34,18 @@ const s = (v: string | number | null | undefined) => (v === null || v === undefi
 
 export default function Settings() {
   const { user, settings, refreshSettings } = useAuth();
-  const [tab, setTab] = useState<Tab>('Business');
+  // ?tab=Email (e.g. coming back from Google sign-in) opens that tab.
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = new URLSearchParams(window.location.search).get('tab');
+    return (TABS as readonly string[]).includes(t ?? '') ? (t as Tab) : 'Business';
+  });
+  const toastOnce = useToast();
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('gmail')) toastOnce.success(`Gmail connected: ${q.get('gmail')}`);
+    if (q.get('gmailError')) toastOnce.error(q.get('gmailError')!);
+    if (q.get('gmail') || q.get('gmailError')) window.history.replaceState(null, '', '/settings?tab=Email');
+  }, [toastOnce]);
   const [fresh, setFresh] = useState(false);
   const isAdmin = user?.role === 'ADMIN';
 
@@ -74,11 +87,23 @@ export default function Settings() {
           {tab === 'Invoicing' && (
             <div className="space-y-4">
               <InvoicingTab settings={settings} disabled={!isAdmin} />
+              <AreaPricingCard settings={settings} disabled={!isAdmin} />
               <PeriodLockCard settings={settings} disabled={!isAdmin} />
             </div>
           )}
-          {tab === 'Payments' && <PaymentsTab settings={settings} disabled={!isAdmin} />}
-          {tab === 'Email' && <EmailTab settings={settings} disabled={!isAdmin} />}
+          {tab === 'Payments' && (
+            <div className="space-y-4">
+              <PaymentsTab settings={settings} disabled={!isAdmin} />
+              <YoupiCard settings={settings} disabled={!isAdmin} />
+            </div>
+          )}
+          {tab === 'Email' && (
+            <div className="space-y-4">
+              <GmailCard settings={settings} isAdmin={isAdmin} />
+              <EmailTab settings={settings} disabled={!isAdmin} />
+              {isAdmin && <MailBrowserCard settings={settings} disabled={!isAdmin} />}
+            </div>
+          )}
           {tab === 'AI' && <AiTab settings={settings} disabled={!isAdmin} />}
           {tab === 'Team' && isAdmin && <TeamTab />}
           {tab === 'Backups' && isAdmin && <BackupsTab />}
@@ -130,6 +155,7 @@ function BusinessTab({ settings, disabled }: { settings: SettingsT; disabled: bo
   const { form, setForm, set } = useForm({
     businessName: s(settings.businessName),
     logoUrl: s(settings.logoUrl),
+    signatureUrl: s(settings.signatureUrl),
     address: s(settings.address),
     state: s(settings.state),
     phone: s(settings.phone),
@@ -139,17 +165,18 @@ function BusinessTab({ settings, disabled }: { settings: SettingsT; disabled: bo
     appUrl: s(settings.appUrl),
   });
 
-  const onLogo = (e: ChangeEvent<HTMLInputElement>) => {
+  const onImage = (key: 'logoUrl' | 'signatureUrl', what: string) => (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (!['image/png', 'image/jpeg'].includes(file.type)) return toast.error('Logo must be a PNG or JPEG image');
-    if (file.size > 500 * 1024) return toast.error('Logo is too large (max 500 KB)');
+    if (!['image/png', 'image/jpeg'].includes(file.type)) return toast.error(`${what} must be a PNG or JPEG image`);
+    if (file.size > 500 * 1024) return toast.error(`${what} is too large (max 500 KB)`);
     const reader = new FileReader();
-    reader.onload = () => setForm((f) => ({ ...f, logoUrl: String(reader.result) }));
+    reader.onload = () => setForm((f) => ({ ...f, [key]: String(reader.result) }));
     reader.onerror = () => toast.error('Could not read that file');
     reader.readAsDataURL(file);
   };
+  const onLogo = onImage('logoUrl', 'Logo');
 
   const submit = () => {
     if (!form.businessName.trim()) return toast.error('Business name is required');
@@ -158,7 +185,7 @@ function BusinessTab({ settings, disabled }: { settings: SettingsT; disabled: bo
 
   return (
     <Card title="Business profile">
-      <div className="mb-5 flex items-center gap-4">
+      <div className="mb-5 flex flex-wrap items-center gap-4">
         <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
           {form.logoUrl ? <img src={form.logoUrl} alt="Logo" className="h-full w-full object-contain" /> : <span className="text-xs text-slate-400">No logo</span>}
         </div>
@@ -174,6 +201,23 @@ function BusinessTab({ settings, disabled }: { settings: SettingsT; disabled: bo
               </button>
             )}
             <span className="text-xs text-slate-500">PNG or JPEG, up to 500 KB. Shown on invoice PDFs.</span>
+          </div>
+        )}
+        <div className="flex h-20 w-32 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+          {form.signatureUrl ? <img src={form.signatureUrl} alt="Signature" className="h-full w-full object-contain" /> : <span className="px-2 text-center text-xs text-slate-400">No signature</span>}
+        </div>
+        {!disabled && (
+          <div className="flex flex-col gap-2">
+            <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              Upload signature
+              <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={onImage('signatureUrl', 'Signature')} aria-label="Signature image" />
+            </label>
+            {form.signatureUrl && (
+              <button className="text-left text-xs text-red-600 hover:underline" onClick={() => setForm((f) => ({ ...f, signatureUrl: '' }))}>
+                Remove
+              </button>
+            )}
+            <span className="text-xs text-slate-500">Printed above &ldquo;Authorised Signatory&rdquo; on invoices.</span>
           </div>
         )}
       </div>
@@ -616,6 +660,47 @@ function StatementsCard({ settings, disabled }: { settings: SettingsT; disabled:
             Send this month&apos;s now
           </Button>
           <Button loading={saving} onClick={() => void save({ statementsEnabled: enabled }, enabled ? 'Monthly statements are on' : 'Saved')}>
+            Save changes
+          </Button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** Jobs priced by area: how the size calculator rounds each job. */
+function AreaPricingCard({ settings, disabled }: { settings: SettingsT; disabled: boolean }) {
+  const { save, saving } = useSave();
+  const [step, setStep] = useState(String(settings.areaRoundUp ?? 0));
+  const example = (w: number, h: number) => {
+    const exact = (w * h) / 144;
+    const s = Number(step);
+    const r = s > 0 ? Math.ceil(Math.round(exact * 1e6) / 1e6 / s - 1e-9) * s : exact;
+    return `${w} × ${h} in = ${exact.toFixed(2)} → ${r.toFixed(2)} sq ft`;
+  };
+  return (
+    <Card title="Jobs priced by area (sq ft)">
+      <p className="mb-4 text-sm text-slate-500">
+        The size calculator on invoices, quotes and the till turns width × height × copies into square feet. Round each job up so small jobs are charged fairly. Set a minimum charge per
+        product in Products.
+      </p>
+      <fieldset disabled={disabled} className="flex flex-wrap items-end gap-4">
+        <Field label="Round each job's area up to">
+          <Select value={step} onChange={(e) => setStep(e.target.value)} aria-label="Round area up to">
+            <option value="0">No rounding (exact, 2 decimals)</option>
+            <option value="0.1">Next 0.1 sq ft</option>
+            <option value="0.25">Next ¼ sq ft (0.25)</option>
+            <option value="0.5">Next ½ sq ft (0.5)</option>
+            <option value="1">Next whole sq ft</option>
+          </Select>
+        </Field>
+        <div className="pb-2 text-xs text-slate-500">
+          e.g. {example(7, 5)} · {example(18, 10)}
+        </div>
+      </fieldset>
+      {!disabled && (
+        <div className="mt-4 flex justify-end">
+          <Button loading={saving} onClick={() => void save({ areaRoundUp: Number(step) })}>
             Save changes
           </Button>
         </div>

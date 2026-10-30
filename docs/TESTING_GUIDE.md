@@ -6,7 +6,7 @@ before a major release or a customer go-live.
 | Layer | Command | Covers | Time |
 |---|---|---|---|
 | Unit tests | `npm run test:unit` | 72 tests of pure rules, no database: GST split, document totals, ageing, GSTR-3B set-off, statuses, periods, GSTIN, CSV, recurring schedules, TOTP and S3 signing (official test vectors), role permissions, tenant host resolution, bank CSV parsing, GSTR-2B matching, alert throttling, and form previews matching the server | ~2 s |
-| API integration tests | `npm --prefix backend test` | 276 tests (includes the unit tests): auth, settings, quotes, recurring invoices, portal, statements, password reset, roles, 2FA, audit log, period lock, off-site backup, multi-business isolation and plans, TDS, debit notes, bank import and matching, GSTR-1 JSON, GSTR-2B, stock valuation, bill reading, actions and owner summary, invoices and GST, payments, credit notes, GSTR-1, bills, supplier payments, expenses, P&L, GSTR-3B, ageing, cash, reminders (through a fake mail server), backups and restore, stock, BOM/production, purchase orders, events, fulfillment, dashboard, analytics, local-AI protocol | ~10–25 s |
+| API integration tests | `npm --prefix backend test` | 386 tests (includes the unit tests): minimum charge per job and area rounding, selling by area (`units.test.ts`: ₹80/sq ft jobs, decimal quantities, whole pieces, vinyl used from the bill of materials, quotes, credit notes, the till, SQF in GSTR-1), point of sale and Connect Gmail against a fake Google (`pos-gmail.test.ts`), YouPI online payments against a fake gateway (`youpi.test.ts`: checkout, signed/forged/repeated webhooks, missed webhooks, late payments), browser choice safeguards, a hand-checked real-world month (`real-world.test.ts`: B2B/B2C, intra/inter-state, mixed rates, part payments, TDS, returns, GSTR-1, sending from Gmail), auth, settings, quotes, recurring invoices, portal, statements, password reset, roles, 2FA, audit log, period lock, off-site backup, multi-business isolation and plans, TDS, debit notes, bank import and matching, GSTR-1 JSON, GSTR-2B, stock valuation, bill reading, actions and owner summary, invoices and GST, payments, credit notes, GSTR-1, bills, supplier payments, expenses, P&L, GSTR-3B, ageing, cash, reminders (through a fake mail server), backups and restore, stock, BOM/production, purchase orders, events, fulfillment, dashboard, analytics, local-AI protocol | ~10–25 s |
 | Type checks | `npm --prefix backend run typecheck` and `npm --prefix frontend run typecheck` | Contract drift between code and types | ~20 s |
 | Browser smoke test | `npm --prefix frontend run e2e` | Real Chrome, 41 checks: login, 22 pages, quote → invoice, recurring invoice, customer portal signed out, forgot password, debit note, bank statement import, a Sales user's restricted menu, create→issue→pay an invoice, return credit note, GST report, record and pay a supplier bill, add an expense, P&L / GSTR-3B / cash screens, reminder and backup settings, PDF, phone layout on 13 screens | ~50 s |
 
@@ -94,6 +94,25 @@ demo data (`npm run seed`) or staging, never production. Screenshots are saved t
 It fails on any JavaScript error, any HTTP 5xx, any page showing an error box, or
 horizontal overflow on a phone-sized screen (it checks the scrolling content area as well
 as the page, so a table pushing a card off-screen is caught).
+
+### Real-world walkthrough
+
+`npm --prefix frontend run e2e:real` (with an instance running) does what a person would do
+in the browser on real data: adds customers, creates a B2B invoice in Goa with two GST rates,
+a discount and shipping, an inter-state IGST invoice, a walk-in sale and a ₹1.2 lakh job for
+an unregistered out-of-state client; checks the on-screen totals against hand-worked figures;
+records part payments; downloads every PDF; opens **Email › Gmail** and **Outlook**,
+checking the compose window's account, recipient, subject, amount and PDF link; bills a 24 × 36 in × 2
+sticker job at ₹80/sq ft through the size calculator (and an 18 × 12 in job at the till); rings up a
+cash sale at the **point of sale** (checking the change) and prints the receipt, takes a UPI
+sale; checks the invoice PDF embeds the ₹ font; follows **Connect Gmail** to a stubbed Google
+sign-in (checking the send-only scope and callback) and back; connects a
+fake **YouPI** gateway in Settings, follows a customer's Pay now link signed out, delivers a
+signed webhook and checks the invoice turns Paid with the UTR (the settings are restored
+afterwards); and checks Settings › Email lists this computer's browsers and profiles. Gmail and
+Outlook are never contacted (the compose page is stubbed), so no email is sent. PDFs,
+screenshots, the exact email text and a `REPORT.md` are saved to
+`frontend/e2e/real-world-output/`.
 
 ## 4. Manual QA checklist
 

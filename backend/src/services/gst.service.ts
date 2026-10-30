@@ -1,5 +1,6 @@
 import prisma from '../lib/prisma';
 import { badRequest } from '../lib/errors';
+import { UNITS, unitOf, type Unit } from '../lib/units';
 import { businessStateCode, placeOfSupplyCode, stateLabel } from '../lib/gst';
 import { round2 } from '../lib/util';
 import { getSettings } from './settings.service';
@@ -80,7 +81,7 @@ export async function buildGstReport(period: Period) {
     }),
     prisma.creditNote.findMany({
       where: { status: 'ISSUED', date: { gte: period.from, lt: period.to } },
-      include: { customer: true, items: true, invoice: true },
+      include: { customer: true, items: true, invoice: { include: { items: { select: { id: true, unit: true } } } } },
       orderBy: [{ date: 'asc' }, { creditNoteNumber: 'asc' }],
     }),
     prisma.invoice.findMany({
@@ -98,7 +99,7 @@ export async function buildGstReport(period: Period) {
   const b2b: Array<TaxSplit & { gstin: string; receiverName: string; invoiceNumber: string; invoiceDate: string; invoiceDateIso: string; invoiceValue: number; placeOfSupply: string; rate: number; inter: boolean }> = [];
   const b2cl: Array<TaxSplit & { invoiceNumber: string; invoiceDate: string; invoiceDateIso: string; invoiceValue: number; placeOfSupply: string; rate: number; inter: boolean }> = [];
   const b2cs = new Map<string, TaxSplit & { placeOfSupply: string; rate: number }>();
-  const hsn = new Map<string, TaxSplit & { hsn: string; description: string; rate: number; quantity: number; totalValue: number; supplyType: 'B2B' | 'B2C' }>();
+  const hsn = new Map<string, TaxSplit & { hsn: string; description: string; rate: number; unit: Unit; uqc: string; quantity: number; totalValue: number; supplyType: 'B2B' | 'B2C' }>();
   const cdnr: Array<TaxSplit & { gstin: string; receiverName: string; noteNumber: string; noteDate: string; noteDateIso: string; noteValue: number; placeOfSupply: string; rate: number; inter: boolean; invoiceNumber: string; invoiceDate: string }> = [];
   const cdnur: Array<TaxSplit & { noteNumber: string; noteDate: string; noteDateIso: string; noteValue: number; placeOfSupply: string; rate: number; inter: boolean; invoiceNumber: string }> = [];
   const warnings: string[] = [];
@@ -106,11 +107,12 @@ export async function buildGstReport(period: Period) {
   const posOf = (pos: string | null, c: { state: string | null; gstin: string | null }) => placeOfSupplyCode(pos, c.state, c.gstin) ?? home;
   const isB2cl = (inter: boolean, registered: boolean, invoiceValue: number) => !registered && inter && invoiceValue > B2CL_LIMIT;
 
-  const hsnAdd = (code: string | null, name: string, rate: number, qty: number, s: TaxSplit, b2bSupply: boolean, sign = 1) => {
+  const hsnAdd = (code: string | null, name: string, rate: number, qty: number, s: TaxSplit, b2bSupply: boolean, sign = 1, unitKey: string | null = 'pcs') => {
     const h = code?.trim() || 'NA';
-    const key = `${b2bSupply ? 'B2B' : 'B2C'}|${h}|${rate}`;
-    const row = hsn.get(key) ?? { hsn: h, description: name, rate, quantity: 0, totalValue: 0, taxable: 0, igst: 0, cgst: 0, sgst: 0, supplyType: b2bSupply ? 'B2B' : 'B2C' };
-    row.quantity += sign * qty;
+    const unit = unitOf(unitKey);
+    const key = `${b2bSupply ? 'B2B' : 'B2C'}|${h}|${rate}|${UNITS[unit].uqc}`;
+    const row = hsn.get(key) ?? { hsn: h, description: name, rate, unit, uqc: UNITS[unit].uqc, quantity: 0, totalValue: 0, taxable: 0, igst: 0, cgst: 0, sgst: 0, supplyType: b2bSupply ? 'B2B' : 'B2C' };
+    row.quantity = Math.round((row.quantity + sign * qty) * 1000) / 1000;
     addInto(row, s, sign);
     row.totalValue = round2(row.taxable + row.igst + row.cgst + row.sgst);
     hsn.set(key, row);
@@ -121,6 +123,9 @@ export async function buildGstReport(period: Period) {
     addInto(row, s, sign);
     b2cs.set(key, row);
   };
+
+  // Credit notes are reported in the unit of the invoice line they reverse.
+  const unitOfInvoiceItem = new Map(creditNotes.flatMap((cn) => cn.invoice.items.map((i) => [i.id, i.unit] as const)));
 
   // --- Invoices -------------------------------------------------------------
   for (const inv of invoices) {
@@ -137,7 +142,7 @@ export async function buildGstReport(period: Period) {
       const r = byRate.get(it.taxRate) ?? { taxable: 0, igst: 0, cgst: 0, sgst: 0 };
       addInto(r, s);
       byRate.set(it.taxRate, r);
-      hsnAdd(it.hsnCode, it.name, it.taxRate, it.quantity, s, registered);
+      hsnAdd(it.hsnCode, it.name, it.taxRate, it.quantity, s, registered, 1, it.unit);
     }
 
     const base = { invoiceNumber: inv.invoiceNumber, invoiceDate: fmtDate(inv.date), invoiceDateIso: isoDay(inv.date), invoiceValue: round2(inv.grandTotal), placeOfSupply: stateLabel(posCode), inter };
@@ -159,7 +164,7 @@ export async function buildGstReport(period: Period) {
       const r = byRate.get(it.taxRate) ?? { taxable: 0, igst: 0, cgst: 0, sgst: 0 };
       addInto(r, s);
       byRate.set(it.taxRate, r);
-      hsnAdd(it.hsnCode, it.name, it.taxRate, it.quantity, s, registered, -1);
+      hsnAdd(it.hsnCode, it.name, it.taxRate, it.quantity, s, registered, -1, unitOfInvoiceItem.get(it.invoiceItemId));
     }
     const base = { noteNumber: cn.creditNoteNumber, noteDate: fmtDate(cn.date), noteDateIso: isoDay(cn.date), noteValue: round2(cn.total), placeOfSupply: stateLabel(posCode), inter };
     for (const [rate, s] of byRate) {
@@ -271,7 +276,7 @@ export function gstCsv(report: GstReport, section: string): { columns: string[];
       return {
         columns: ['Supply Type', 'HSN', 'Description', 'UQC', 'Total Quantity', 'Total Value', 'Rate', 'Taxable Value', 'Integrated Tax Amount', 'Central Tax Amount', 'State/UT Tax Amount', 'Cess Amount'],
         rows: report.hsn.map((r) => ({
-          'Supply Type': r.supplyType, HSN: r.hsn, Description: r.description, UQC: 'NOS-NUMBERS', 'Total Quantity': r.quantity, 'Total Value': r.totalValue,
+          'Supply Type': r.supplyType, HSN: r.hsn, Description: r.description, UQC: UNITS[r.unit].uqcLabel, 'Total Quantity': r.quantity, 'Total Value': r.totalValue,
           Rate: r.rate, 'Taxable Value': r.taxable, 'Integrated Tax Amount': r.igst, 'Central Tax Amount': r.cgst, 'State/UT Tax Amount': r.sgst, 'Cess Amount': 0,
         })),
       };
@@ -295,7 +300,7 @@ export async function salesRegister(period: Period) {
     }),
     prisma.creditNote.findMany({
       where: { status: 'ISSUED', date: { gte: period.from, lt: period.to } },
-      include: { customer: true, items: true, invoice: true },
+      include: { customer: true, items: true, invoice: { include: { items: { select: { id: true, unit: true } } } } },
       orderBy: [{ date: 'asc' }, { creditNoteNumber: 'asc' }],
     }),
   ]);

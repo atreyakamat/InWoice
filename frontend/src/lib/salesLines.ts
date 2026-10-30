@@ -1,5 +1,6 @@
 import { previewDocument } from './docmath';
 import type { Customer } from './types';
+import { UNITS, unitOf, type Unit } from './units';
 
 /**
  * Line items shared by the invoice, quote and recurring-invoice forms: form state,
@@ -15,6 +16,9 @@ export interface Line {
   name: string;
   hsnCode: string;
   quantity: string;
+  unit: Unit;
+  details: string; // e.g. "24 × 36 in × 2 = 12.00 sq ft"
+  minCharge?: number | null; // the product's minimum charge per job
   unitPrice: string;
   taxRate: string;
 }
@@ -25,6 +29,9 @@ export interface SavedLine {
   name: string | null;
   hsnCode: string | null;
   quantity: number;
+  unit?: string | null;
+  details?: string | null;
+  minCharge?: number | null;
   unitPrice: number | null;
   taxRate: number | null;
 }
@@ -39,6 +46,8 @@ export const blankLine = (defaultTax: number): Line => ({
   name: '',
   hsnCode: '',
   quantity: '1',
+  unit: 'pcs',
+  details: '',
   unitPrice: '',
   taxRate: String(defaultTax),
 });
@@ -51,6 +60,9 @@ export const linesFrom = (items: SavedLine[]): Line[] =>
     name: i.name ?? '',
     hsnCode: i.hsnCode ?? '',
     quantity: String(i.quantity),
+    unit: unitOf(i.unit),
+    details: i.details ?? '',
+    minCharge: i.minCharge ?? null,
     unitPrice: i.unitPrice === null ? '' : String(i.unitPrice),
     taxRate: i.taxRate === null ? '' : String(i.taxRate),
   }));
@@ -61,7 +73,11 @@ export function lineError(lines: Line[], { allowBlankPrice = false } = {}): stri
   for (const [i, l] of lines.entries()) {
     if (l.type !== 'CUSTOM' && !l.itemId) return `Line ${i + 1}: choose a ${l.type === 'PACK' ? 'pack' : 'product'}`;
     if (l.type === 'CUSTOM' && !l.name.trim()) return `Line ${i + 1}: enter a description`;
-    if (!(toNum(l.quantity) > 0) || !Number.isInteger(toNum(l.quantity))) return `Line ${i + 1}: quantity must be a whole number above 0`;
+    const q = toNum(l.quantity);
+    if (!(q > 0)) return `Line ${i + 1}: enter a quantity above 0`;
+    const unit = UNITS[unitOf(l.unit)];
+    if ((unit.whole || l.type === 'PACK') && !Number.isInteger(q)) return `Line ${i + 1}: ${unit.label} must be a whole number (or change the unit, e.g. to sq ft)`;
+    if (Math.abs(q * 1000 - Math.round(q * 1000)) > 1e-6) return `Line ${i + 1}: use at most 3 decimal places`;
     const blank = l.unitPrice.trim() === '';
     if ((blank && !(allowBlankPrice && l.type !== 'CUSTOM')) || toNum(l.unitPrice) < 0) return `Line ${i + 1}: enter a unit price`;
   }
@@ -76,6 +92,8 @@ export const linesBody = (lines: Line[]) =>
     name: l.name.trim() || null,
     hsnCode: l.hsnCode.trim() || null,
     quantity: toNum(l.quantity),
+    unit: l.type === 'PACK' ? 'pcs' : unitOf(l.unit),
+    details: l.details?.trim() || null,
     unitPrice: l.unitPrice.trim() === '' ? undefined : toNum(l.unitPrice),
     taxRate: l.taxRate.trim() === '' ? null : toNum(l.taxRate),
   }));
@@ -98,6 +116,7 @@ export function salesTotals(lines: Line[], discount: string, shipping: string, i
       quantity: toNum(l.quantity),
       unitPrice: l.unitPrice.trim() === '' ? (catalogPrice(l) ?? 0) : toNum(l.unitPrice),
       taxRate: toNum(l.taxRate),
+      minCharge: l.type === 'PRODUCT' ? l.minCharge : null,
     })),
     { discount: toNum(discount), shippingCost: toNum(shipping), interState },
   );

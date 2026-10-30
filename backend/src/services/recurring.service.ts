@@ -4,6 +4,7 @@ import prisma from '../lib/prisma';
 import { badRequest, notFound } from '../lib/errors';
 import { optDate, optStr } from '../lib/util';
 import { buildInvoiceLines, createInvoice, invoiceItemInput } from './invoice.service';
+import { unitOf } from '../lib/units';
 import { emailInvoice } from './documents.service';
 import { isEmailConfigured } from './email.service';
 import { getSettings } from './settings.service';
@@ -77,6 +78,8 @@ function itemRows(input: RecurringInput) {
     name: i.name ?? null,
     hsnCode: i.hsnCode ?? null,
     quantity: i.quantity,
+    unit: i.unit ?? null, // null = the product's own unit at each run
+    details: i.details ?? null,
     unitPrice: i.unitPrice ?? null,
     taxRate: i.taxRate ?? null,
     sortOrder: idx,
@@ -214,6 +217,8 @@ async function runOccurrence(r: Schedule, invoiceDate: Date) {
           name: i.name,
           hsnCode: i.hsnCode,
           quantity: i.quantity,
+          unit: i.unit ? unitOf(i.unit) : undefined,
+          details: i.details,
           unitPrice: i.unitPrice ?? undefined,
           taxRate: i.taxRate,
         })),

@@ -81,6 +81,8 @@ export async function portalData(token: string) {
     outstanding,
     overdue,
     payAllLink: upiLink(settings, outstanding, `${customer.name} account`),
+    // Online checkout (YouPI-PG) is set up: the portal shows a "Pay now" button per invoice.
+    payOnline: Boolean(settings.youpiEnabled && settings.youpiApiUrl && settings.youpiMerchantId),
     invoices: rows.map((r) => ({ ...r, payLink: r.balance > 0 ? upiLink(settings, r.balance, `Invoice ${r.invoiceNumber}`) : null })),
     quotes: quotes.map((q) => ({ ...q, status: quoteDisplayStatus(q) })),
   };

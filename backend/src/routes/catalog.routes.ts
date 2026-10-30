@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { UNIT_KEYS, type Unit } from '../lib/units';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
@@ -23,6 +24,9 @@ const productInput = z.object({
   shape: optStr,
   isWaterproof: z.boolean().optional(),
   price: z.coerce.number().min(0),
+  unit: z.enum(UNIT_KEYS as [Unit, ...Unit[]]).optional(), // price is per this unit
+  // Smallest amount billed for one job (before GST); '' or null removes it.
+  minCharge: z.union([z.literal(''), z.coerce.number().min(0)]).optional().nullable().transform((v) => (v === '' || v === 0 ? null : v)),
   costPrice: z.coerce.number().min(0).optional(),
   hsnCode: optStr,
   taxRate: z.union([z.literal(''), z.coerce.number().min(0).max(100)]).optional().nullable().transform((v) => (v === '' ? null : v)),

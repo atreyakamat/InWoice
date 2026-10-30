@@ -99,7 +99,7 @@ export function gstr1Json(r: GstReport, gstin: string, fp: string) {
     num: i + 1,
     hsn_sc: h.hsn === 'NA' ? '' : h.hsn,
     desc: h.description.slice(0, 30),
-    uqc: 'NOS',
+    uqc: h.uqc ?? 'NOS',
     qty: h.quantity,
     rt: h.rate,
     txval: round2(h.taxable),

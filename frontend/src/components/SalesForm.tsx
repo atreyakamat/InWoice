@@ -7,6 +7,9 @@ import { money } from '../lib/format';
 import { round2 } from '../lib/docmath';
 import { blankLine, toNum, type Line, type LineType, type salesTotals } from '../lib/salesLines';
 import type { Customer, Pack, Product } from '../lib/types';
+import { SizeCalculator } from './SizeCalculator';
+import { useAuth } from '../context/AuthContext';
+import { UNITS, UNIT_KEYS, isArea, unitLabel, unitOf, type Unit } from '../lib/units';
 
 /**
  * Shared pieces of the invoice, quote and recurring-invoice forms: the line items, the
@@ -121,12 +124,16 @@ export function LineItemsCard({
   /** Shown under the price field, e.g. "Blank = catalog price on each run". */
   priceHint?: string;
 }) {
+  const { settings } = useAuth();
+  const areaRoundUp = settings?.areaRoundUp ?? 0;
   const updateLine = (key: number, patch: Partial<Line>) => onLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
   const pickItem = (line: Line, itemId: string) => {
     if (!itemId) return updateLine(line.key, { itemId: '' });
     const ref = line.type === 'PRODUCT' ? products.find((x) => x.id === itemId) : packs.find((x) => x.id === itemId);
-    if (ref) updateLine(line.key, { itemId, name: ref.name, unitPrice: String(ref.price), taxRate: String(ref.taxRate ?? defaultTax), hsnCode: ref.hsnCode ?? '' });
+    const unit: Unit = line.type === 'PRODUCT' ? unitOf((ref as Product | undefined)?.unit) : 'pcs';
+    const minCharge = line.type === 'PRODUCT' ? ((ref as Product | undefined)?.minCharge ?? null) : null;
+    if (ref) updateLine(line.key, { itemId, name: ref.name, unitPrice: String(ref.price), taxRate: String(ref.taxRate ?? defaultTax), hsnCode: ref.hsnCode ?? '', unit, details: '', minCharge });
   };
 
   const optionsFor = (line: Line) => {
@@ -148,14 +155,16 @@ export function LineItemsCard({
       {lines.length === 0 && <p className="text-sm text-slate-500">No lines yet. Add one to get started.</p>}
       <div className="space-y-3">
         {lines.map((l, idx) => {
-          const amount = round2(toNum(l.quantity) * toNum(l.unitPrice));
+          const raw = round2(toNum(l.quantity) * toNum(l.unitPrice));
+          const minApplies = l.type === 'PRODUCT' && Boolean(l.minCharge) && raw > 0 && raw < (l.minCharge ?? 0);
+          const amount = minApplies ? (l.minCharge ?? 0) : raw;
           return (
             <div key={l.key} className="rounded-lg border border-slate-200 p-3">
               <div className="grid gap-2 sm:grid-cols-12">
                 <Field label="Type" className="sm:col-span-3">
                   <Select
                     value={l.type}
-                    onChange={(e) => updateLine(l.key, { type: e.target.value as LineType, itemId: '', name: '', unitPrice: '', hsnCode: '', taxRate: String(defaultTax) })}
+                    onChange={(e) => updateLine(l.key, { type: e.target.value as LineType, itemId: '', name: '', unitPrice: '', hsnCode: '', taxRate: String(defaultTax), unit: 'pcs', details: '', minCharge: null })}
                   >
                     <option value="PRODUCT">Product</option>
                     <option value="PACK">Pack</option>
@@ -179,9 +188,25 @@ export function LineItemsCard({
                   </Field>
                 )}
                 <Field label="Qty" className="sm:col-span-2">
-                  <Input type="number" min={1} step={1} inputMode="numeric" value={l.quantity} onChange={(e) => updateLine(l.key, { quantity: e.target.value })} />
+                  <Input
+                    type="number"
+                    min={0}
+                    step={UNITS[l.unit].whole ? 1 : 'any'}
+                    inputMode={UNITS[l.unit].whole ? 'numeric' : 'decimal'}
+                    value={l.quantity}
+                    onChange={(e) => updateLine(l.key, { quantity: e.target.value, details: isArea(l.unit) ? '' : l.details })}
+                  />
                 </Field>
-                <Field label="Unit price" className="sm:col-span-3" hint={l.type !== 'CUSTOM' ? priceHint : undefined}>
+                <Field label="Unit" className="sm:col-span-2">
+                  <Select value={l.type === 'PACK' ? 'pcs' : l.unit} disabled={l.type === 'PACK'} onChange={(e) => updateLine(l.key, { unit: e.target.value as Unit, details: '' })} aria-label={`Unit for line ${idx + 1}`}>
+                    {UNIT_KEYS.map((u) => (
+                      <option key={u} value={u}>
+                        {UNITS[u].label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label={l.unit === 'pcs' ? 'Unit price' : `Rate per ${unitLabel(l.unit)}`} className="sm:col-span-2" hint={l.type !== 'CUSTOM' ? priceHint : undefined}>
                   <Input type="number" min={0} step="0.01" inputMode="decimal" value={l.unitPrice} onChange={(e) => updateLine(l.key, { unitPrice: e.target.value })} />
                 </Field>
                 <Field label="Tax %" className="sm:col-span-2">
@@ -190,7 +215,7 @@ export function LineItemsCard({
                 <Field label="HSN/SAC" className="sm:col-span-2">
                   <Input value={l.hsnCode} onChange={(e) => updateLine(l.key, { hsnCode: e.target.value })} />
                 </Field>
-                <div className="flex items-end justify-between gap-2 sm:col-span-3">
+                <div className="flex items-end justify-between gap-2 sm:col-span-2">
                   <div className="pb-2 text-sm">
                     <span className="text-xs text-slate-500">Amount </span>
                     <span className="font-semibold tabular-nums">{money(amount)}</span>
@@ -206,6 +231,20 @@ export function LineItemsCard({
                   </button>
                 </div>
               </div>
+              {isArea(l.unit) && l.type !== 'PACK' && (
+                <SizeCalculator
+                  key={`${l.key}-${l.unit}`}
+                  target={l.unit as 'sqft' | 'sqm'}
+                  roundUpTo={areaRoundUp}
+                  onArea={(r) => r && updateLine(l.key, { quantity: String(r.quantity), details: r.details.replace(/ = .*$/, '') })}
+                />
+              )}
+              {l.details && <p className="mt-1 text-xs text-slate-500">Shown on the invoice: {l.details}</p>}
+              {minApplies && (
+                <p className="mt-1 text-xs text-amber-700" data-testid="min-charge-note">
+                  Minimum charge {money(l.minCharge ?? 0)} applies ({money(raw)} by size)
+                </p>
+              )}
             </div>
           );
         })}

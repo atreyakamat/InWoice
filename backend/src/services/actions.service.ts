@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { badRequest } from '../lib/errors';
-import { round2 } from '../lib/util';
+import { moneyText, round2 } from '../lib/util';
 import { daysOverdue } from '../lib/accounting';
 import { balanceOf } from './invoice.service';
 import { sendReminder } from './reminder.service';
@@ -85,7 +85,7 @@ export async function draftReminders(invoiceIds: string[]) {
     }),
   ]);
   const cur = settings.currencySymbol;
-  const facts = invoices.map((i) => ({ invoiceId: i.id, customer: i.customer.name, invoice: i.invoiceNumber, amountDue: `${cur}${balanceOf(i).toFixed(2)}`, daysOverdue: daysOverdue(i.dueDate) }));
+  const facts = invoices.map((i) => ({ invoiceId: i.id, customer: i.customer.name, invoice: i.invoiceNumber, amountDue: moneyText(cur, balanceOf(i)), daysOverdue: daysOverdue(i.dueDate) }));
   const template = (f: (typeof facts)[number]) =>
     [
       `Hi ${f.customer},`,

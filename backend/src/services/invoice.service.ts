@@ -4,6 +4,7 @@ import prisma from '../lib/prisma';
 import { badRequest, notFound } from '../lib/errors';
 import { optDate, optStr, round2 } from '../lib/util';
 import { businessStateCode, placeOfSupplyCode, stateLabel } from '../lib/gst';
+import { UNITS, UNIT_KEYS, unitOf, type Unit } from '../lib/units';
 import { assertOpenPeriod, getSettings } from './settings.service';
 import { assertWithinPlan } from './platform.service';
 import { commitStockForInvoice, releaseStockForInvoice } from './stock.service';
@@ -15,7 +16,14 @@ export const invoiceItemInput = z.object({
   itemId: optStr,
   name: optStr,
   hsnCode: optStr,
-  quantity: z.coerce.number().int().positive(),
+  // Decimals for measured units (12.25 sq ft); whole numbers for pcs/sets (checked when building).
+  quantity: z.coerce
+    .number()
+    .positive()
+    .max(1_000_000)
+    .refine((q) => Math.abs(q * 1000 - Math.round(q * 1000)) < 1e-6, 'Use at most 3 decimal places'),
+  unit: z.enum(UNIT_KEYS as [Unit, ...Unit[]]).optional(),
+  details: z.string().trim().max(120).optional().nullable(), // e.g. "24 × 36 in × 2"
   unitPrice: z.coerce.number().min(0).optional(),
   taxRate: z.coerce.number().min(0).max(100).optional().nullable(),
 });
@@ -57,6 +65,8 @@ export async function buildInvoiceLines(db: Tx | typeof prisma, input: InvoiceIn
     let unitPrice = item.unitPrice;
     let hsnCode = item.hsnCode ?? null;
     let taxRate = item.taxRate ?? null;
+    let unit: Unit = item.unit ?? 'pcs';
+    let minCharge: number | null = null;
 
     if (item.type === 'PRODUCT' || item.type === 'PACK') {
       if (!item.itemId) throw badRequest(`${item.type.toLowerCase()} line is missing itemId`);
@@ -67,21 +77,34 @@ export async function buildInvoiceLines(db: Tx | typeof prisma, input: InvoiceIn
       if (!ref) throw notFound(item.type === 'PRODUCT' ? 'Product' : 'Pack');
       name = name || ref.name;
       unitPrice = unitPrice ?? ref.price;
+      // Products carry their selling unit (₹80 per sq ft); packs are always pieces.
+      unit = item.type === 'PRODUCT' ? (item.unit ?? unitOf((ref as { unit?: string }).unit)) : 'pcs';
+      if (item.type === 'PRODUCT') minCharge = (ref as { minCharge?: number | null }).minCharge ?? null;
       hsnCode = hsnCode ?? ref.hsnCode;
       taxRate = taxRate ?? ref.taxRate;
     }
     if (!name) throw badRequest('Each custom line needs a name');
     if (unitPrice === undefined) throw badRequest(`Line "${name}" needs a unit price`);
+    if (UNITS[unit].whole && !Number.isInteger(item.quantity)) {
+      throw badRequest(`"${name}" is sold in ${UNITS[unit].label}: use a whole number, or change the line's unit (e.g. sq ft)`);
+    }
+    const quantity = Math.round(item.quantity * 1000) / 1000;
+    // A job worth less than the product's minimum charge is billed at the minimum.
+    const raw = round2(quantity * round2(unitPrice));
+    const applyMin = minCharge !== null && minCharge > 0 && raw < round2(minCharge);
 
     lines.push({
       type: item.type,
       itemId: item.type === 'CUSTOM' ? null : item.itemId ?? null,
       name,
       hsnCode,
-      quantity: item.quantity,
+      quantity,
+      unit,
+      details: item.details?.trim() || null,
       unitPrice: round2(unitPrice),
       taxRate: taxRate ?? settings.defaultTaxRate,
-      total: round2(item.quantity * unitPrice),
+      minCharge: applyMin ? round2(minCharge!) : null,
+      total: applyMin ? round2(minCharge!) : raw,
     });
   }
 
@@ -188,7 +211,7 @@ async function issueInTx(tx: Tx, invoiceId: string) {
   return tx.invoice.update({ where: { id: invoiceId }, data: { status: 'PENDING', issuedAt: new Date() } });
 }
 
-export async function createInvoice(input: InvoiceInput, opts: { recurringId?: string } = {}) {
+export async function createInvoice(input: InvoiceInput, opts: { recurringId?: string; source?: string } = {}) {
   await assertWithinPlan('invoices');
   const settings = await getSettings();
   return prisma.$transaction(async (tx) => {
@@ -204,6 +227,7 @@ export async function createInvoice(input: InvoiceInput, opts: { recurringId?: s
         dueDate,
         notes: input.notes ?? null,
         recurringId: opts.recurringId ?? null,
+        source: opts.source ?? null,
         ...totals,
         items: { create: lines },
       },
@@ -347,6 +371,8 @@ export async function duplicateInvoice(id: string) {
       name: i.name,
       hsnCode: i.hsnCode,
       quantity: i.quantity,
+      unit: unitOf(i.unit),
+      details: i.details,
       unitPrice: i.unitPrice,
       taxRate: i.taxRate,
     })),

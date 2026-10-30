@@ -41,6 +41,8 @@ const RecurringEditor = lazy(() => import('./pages/RecurringEditor'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Portal = lazy(() => import('./pages/Portal'));
+const Pos = lazy(() => import('./pages/Pos'));
+const PosReceipt = lazy(() => import('./pages/PosReceipt'));
 const ActivityLog = lazy(() => import('./pages/ActivityLog'));
 const Bank = lazy(() => import('./pages/Bank'));
 const Actions = lazy(() => import('./pages/Actions'));
@@ -65,6 +67,7 @@ function AppRoutes() {
       <Route path="/forgot-password" element={<Public><ForgotPassword /></Public>} />
       <Route path="/reset-password" element={<Public><ResetPassword /></Public>} />
       <Route path="/portal/:token" element={<Public><Portal /></Public>} />
+      <Route path="/pos/receipt/:id" element={<Protected><PosReceipt /></Protected>} />
       <Route
         path="/"
         element={
@@ -89,6 +92,7 @@ function AppRoutes() {
         <Route path="activity" element={<ActivityLog />} />
         <Route path="bank" element={<Bank />} />
         <Route path="actions" element={<Actions />} />
+        <Route path="pos" element={<Pos />} />
         <Route path="quotes" element={<Quotes />} />
         <Route path="quotes/new" element={<QuoteEditor />} />
         <Route path="quotes/:id" element={<QuoteDetail />} />

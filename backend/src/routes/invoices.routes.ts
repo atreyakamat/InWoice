@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { notFound } from '../lib/errors';
-import { pagination, param, qs, requestOrigin } from '../lib/util';
+import { dayText, moneyText, pagination, param, qs, requestOrigin } from '../lib/util';
 import { authenticate, authorize } from '../middlewares/auth';
 import {
   addPayment,
@@ -24,8 +24,9 @@ import {
 import { renderInvoicePdf } from '../services/pdf.service';
 import { createCreditNote, creditNoteInput } from '../services/creditnote.service';
 import { sendReminder } from '../services/reminder.service';
-import { emailInvoice } from '../services/documents.service';
+import { composeInvoice, emailInvoice } from '../services/documents.service';
 import { portalUrl } from '../services/portal.service';
+import { createCheckout, listOnlinePayments, payNowLink, syncPending } from '../services/youpi.service';
 import { getSettings } from '../services/settings.service';
 
 const router = Router();
@@ -130,10 +131,38 @@ router.get('/:id/pdf', async (req, res) => {
 
 router.post('/:id/send', async (req, res) => {
   const body = z
-    .object({ to: z.string().trim().email().optional(), subject: z.string().optional(), message: z.string().optional() })
+    .object({ to: z.string().trim().email().optional(), subject: z.string().optional(), message: z.string().optional(), via: z.enum(['default', 'gmail']).default('default') })
     .parse(req.body ?? {});
-  const { to } = await emailInvoice(param(req.params.id), { ...body, requestOrigin: requestOrigin(req) });
+  const { to } = await emailInvoice(param(req.params.id), { ...body, requestOrigin: requestOrigin(req), fromUserId: body.via === 'gmail' ? req.user!.id : undefined });
   res.json({ success: true, message: `Invoice emailed to ${to}` });
+});
+
+/** Prepare the invoice email for the user's own Gmail/Outlook (no SMTP needed). */
+router.get('/:id/compose', async (req, res) => {
+  res.json({ success: true, data: await composeInvoice(param(req.params.id), requestOrigin(req)) });
+});
+/** The user is opening it in their mail app: issue a draft and note it on the customer. */
+router.post('/:id/compose', async (req, res) => {
+  res.json({ success: true, data: await composeInvoice(param(req.params.id), requestOrigin(req), true) });
+});
+
+// --- Online payments (YouPI-PG) -----------------------------------------------------------
+
+router.get('/:id/online-payments', async (req, res) => {
+  const inv = await loadInvoice(param(req.params.id));
+  res.json({ success: true, data: { link: await payNowLink(inv.customerId, inv.id, requestOrigin(req)), sessions: await listOnlinePayments(inv.id) } });
+});
+
+/** Start a checkout now (e.g. to show the QR to a customer at the counter). */
+router.post('/:id/online-payments', async (req, res) => {
+  res.status(201).json({ success: true, data: await createCheckout(param(req.params.id)) });
+});
+
+/** Ask the gateway about open checkouts for this invoice (in case a webhook was missed). */
+router.post('/:id/online-payments/sync', async (req, res) => {
+  const id = param(req.params.id);
+  const r = await syncPending(id);
+  res.json({ success: true, data: { ...r, sessions: await listOnlinePayments(id), invoice: withDerived(await loadInvoice(id)) } });
 });
 
 /** Email a payment reminder now (with the PDF). Does not change the automatic schedule. */
@@ -151,9 +180,10 @@ router.get('/:id/whatsapp', async (req, res) => {
   const overdue = displayStatus(inv) === 'OVERDUE';
   const msg = [
     `Hi ${inv.customer.name}, this is ${settings.businessName}.`,
-    overdue ? `A friendly reminder: invoice ${inv.invoiceNumber} was due on ${inv.dueDate!.toDateString()}.` : '',
-    `Invoice ${inv.invoiceNumber}: ${settings.currencySymbol}${inv.grandTotal.toFixed(2)}${balance > 0 && balance < inv.grandTotal ? ` (balance ${settings.currencySymbol}${balance.toFixed(2)})` : ''}.`,
+    overdue ? `A friendly reminder: invoice ${inv.invoiceNumber} was due on ${dayText(inv.dueDate!)}.` : '',
+    `Invoice ${inv.invoiceNumber}: ${moneyText(settings.currencySymbol, inv.grandTotal)}${balance > 0 && balance < inv.grandTotal ? ` (balance ${moneyText(settings.currencySymbol, balance)})` : ''}.`,
     balance > 0 && settings.upiId ? `Pay via UPI: ${settings.upiId}` : balance <= 0 ? 'Paid in full - thank you!' : '',
+    balance > 0 ? await payNowLink(inv.customerId, inv.id, requestOrigin(req)).then((l) => (l ? `Pay online now: ${l}` : '')) : '',
     portal ? `View and pay online: ${portal}` : '',
   ]
     .filter(Boolean)

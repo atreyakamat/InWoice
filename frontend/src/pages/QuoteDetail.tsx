@@ -1,10 +1,12 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, Copy, Download, Eye, FileText, Mail, Pencil, Trash2, X } from 'lucide-react';
-import { Button, Card, ErrorBox, Field, Input, Modal, Spinner, StatusBadge, Table, Td, Textarea, Th, useConfirm } from '../components/ui';
+import { Button, Card, ErrorBox, Spinner, StatusBadge, Table, Td, Th, useConfirm } from '../components/ui';
 import { useToast } from '../components/toast';
 import { downloadFile, get, http, openPdf, patch, post } from '../lib/api';
 import { useLoad } from '../lib/useLoad';
+import { MailComposer } from '../components/MailComposer';
+import { qtyText, unitLabel, unitOf } from '../lib/units';
 import { date, dateTime, money } from '../lib/format';
 import type { Invoice, Quote } from '../lib/types';
 
@@ -16,7 +18,6 @@ export default function QuoteDetail() {
   const { data: q, setData, loading, error, reload } = useLoad(() => get<Quote>(`/quotes/${id}`), [id]);
   const [busy, setBusy] = useState<string | null>(null);
   const [mailOpen, setMailOpen] = useState(false);
-  const [mail, setMail] = useState({ to: '', subject: '', message: '' });
 
   if (loading && !q) return <Spinner />;
   if (error) return <ErrorBox message={error} onRetry={reload} />;
@@ -64,15 +65,6 @@ export default function QuoteDetail() {
     });
   };
 
-  const submitMail = (e: FormEvent) => {
-    e.preventDefault();
-    void run('mail', async () => {
-      const res = await http.post(`/quotes/${id}/send`, { to: mail.to.trim() || undefined, subject: mail.subject.trim() || undefined, message: mail.message.trim() || undefined });
-      setData(res.data.data);
-      setMailOpen(false);
-      toast.success(res.data.message ?? 'Quote emailed');
-    });
-  };
 
   return (
     <div>
@@ -113,10 +105,7 @@ export default function QuoteDetail() {
           {!converted && (
             <Button
               variant="secondary"
-              onClick={() => {
-                setMail({ to: q.customer.email ?? '', subject: '', message: '' });
-                setMailOpen(true);
-              }}
+              onClick={() => setMailOpen(true)}
             >
               <Mail size={15} /> Email
             </Button>
@@ -191,8 +180,15 @@ export default function QuoteDetail() {
                     <div className="font-medium text-slate-900">{i.name}</div>
                     {i.hsnCode && <div className="text-xs text-slate-500">HSN {i.hsnCode}</div>}
                   </Td>
-                  <Td className="text-right tabular-nums">{i.quantity}</Td>
-                  <Td className="text-right tabular-nums">{money(i.unitPrice)}</Td>
+                  <Td className="whitespace-nowrap text-right tabular-nums">
+                    {qtyText(i.quantity, i.unit)}
+                    {i.details && <div className="text-xs text-slate-500">{i.details}</div>}
+                    {i.minCharge && <div className="text-xs text-amber-700">Minimum charge</div>}
+                  </Td>
+                  <Td className="whitespace-nowrap text-right tabular-nums">
+                    {money(i.unitPrice)}
+                    {unitOf(i.unit) !== 'pcs' && <span className="text-xs text-slate-500">/{unitLabel(i.unit)}</span>}
+                  </Td>
                   <Td className="text-right tabular-nums">{i.taxRate}%</Td>
                   <Td className="text-right tabular-nums">{money(i.total)}</Td>
                 </tr>
@@ -234,33 +230,7 @@ export default function QuoteDetail() {
         </div>
       </div>
 
-      <Modal
-        open={mailOpen}
-        onClose={() => setMailOpen(false)}
-        title={`Email ${q.quoteNumber}`}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setMailOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" form="quote-mail" loading={busy === 'mail'}>
-              Send
-            </Button>
-          </>
-        }
-      >
-        <form id="quote-mail" onSubmit={submitMail} className="space-y-3">
-          <Field label="To">
-            <Input type="email" value={mail.to} onChange={(e) => setMail({ ...mail, to: e.target.value })} required />
-          </Field>
-          <Field label="Subject" hint="Blank = standard subject">
-            <Input value={mail.subject} onChange={(e) => setMail({ ...mail, subject: e.target.value })} />
-          </Field>
-          <Field label="Message" hint="Blank = standard message with a link for the customer to accept online">
-            <Textarea value={mail.message} onChange={(e) => setMail({ ...mail, message: e.target.value })} />
-          </Field>
-        </form>
-      </Modal>
+      <MailComposer open={mailOpen} onClose={() => setMailOpen(false)} kind="quotes" id={id!} onDone={reload} />
       {confirm.dialog}
     </div>
   );

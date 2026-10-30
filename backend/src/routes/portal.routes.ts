@@ -4,13 +4,14 @@ import QRCode from 'qrcode';
 import prisma from '../lib/prisma';
 import { config } from '../lib/config';
 import { notFound } from '../lib/errors';
-import { param } from '../lib/util';
+import { param, requestOrigin } from '../lib/util';
 import { balanceOf, invoiceInclude } from '../services/invoice.service';
 import { quoteInclude, setQuoteStatus } from '../services/quote.service';
 import { customerByToken, portalData } from '../services/portal.service';
 import { customerStatement } from '../services/statement.service';
 import { renderInvoicePdf, renderQuotePdf, renderStatementPdf, upiLink } from '../services/pdf.service';
-import { getSettings } from '../services/settings.service';
+import { getSettings, publicBaseUrl } from '../services/settings.service';
+import { createCheckout } from '../services/youpi.service';
 
 /**
  * Public customer portal API: no login, the secret token in the URL is the key. It only
@@ -40,6 +41,26 @@ const sendPdf = (res: Response, name: string, pdf: Buffer, download: boolean) =>
   res.setHeader('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${name}.pdf"`);
   res.send(pdf);
 };
+
+/**
+ * "Pay now" link from emails, WhatsApp and the portal: opens a fresh online checkout for what
+ * the invoice still owes, then brings the customer back to their portal.
+ */
+router.get('/:token/invoices/:id/pay', async (req, res) => {
+  const token = param(req.params.token);
+  const customer = await customerByToken(token);
+  const inv = await prisma.invoice.findFirst({ where: { id: param(req.params.id), customerId: customer.id } });
+  if (!inv) throw notFound('Invoice');
+  const base = (await publicBaseUrl(requestOrigin(req))) ?? requestOrigin(req);
+  const back = `${base}/portal/${token}`;
+  try {
+    const session = await createCheckout(inv.id, { returnUrl: `${back}?paid=${encodeURIComponent(inv.invoiceNumber)}` });
+    res.redirect(303, session.checkoutUrl!);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Online payment is not available right now';
+    res.redirect(303, `${back}?payError=${encodeURIComponent(message)}`);
+  }
+});
 
 router.get('/:token', async (req, res) => {
   res.json({ success: true, data: await portalData(param(req.params.token)) });

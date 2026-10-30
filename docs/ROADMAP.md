@@ -201,10 +201,22 @@ foundation. See priorities below.
 ## What to build next
 
 ### Waiting on you
-1. **Payment links (Razorpay):** a payment link on the invoice, email and portal, marked
+1. **Online payments:** done for [YouPI-PG](https://github.com/youpi-pg/YouPI-PG) (self-hosted UPI, Pay now links, signed webhooks). **Razorpay** (still to do): a payment link on the invoice, email and portal, marked
    "Paid" automatically by webhook. Needs your Razorpay account details.
 2. **Subscription billing** for your own customers on the SaaS plans (Razorpay
    Subscriptions). It plugs into the existing plan and trial handling in `platform.service`.
+
+### Done in v4.1
+- **GST-compliant PDFs:** "Tax Invoice" / "Bill of Supply" title, ₹ symbol (bundled Noto Sans),
+  state code with place of supply, reverse-charge line, tax by rate, amount in words, and a
+  signature block with an optional signature image.
+- **Point of sale** for counters and events, with cash/UPI/card/YouPI/pay-later and receipts.
+- **Connect Gmail:** send from your own Gmail with the PDF attached (Gmail API, send-only).
+- **Units and decimal quantities:** sq ft, sq m, m, ft, hrs, kg, sets and rolls alongside pieces,
+  with a width × height × copies calculator; measured products consume their bill of materials;
+  GSTR-1 HSN summary per UQC.
+- **Minimum charge per job** on products, and **rounding each job's area up** (Settings ›
+  Invoicing, default ¼ sq ft). Credit notes credit the returned share of what the line cost.
 
 ### Next
 3. **E-way bills** for goods movements over ₹50,000, and e-invoicing (IRN) for clients

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { UNITS, UNIT_KEYS, unitLabel, unitOf, type Unit } from '../lib/units';
 import { Link } from 'react-router-dom';
 import { Download, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import {
@@ -32,6 +33,8 @@ interface FormState {
   category: string;
   description: string;
   price: string;
+  unit: Unit;
+  minCharge: string;
   costPrice: string;
   hsnCode: string;
   taxRate: string;
@@ -46,6 +49,8 @@ const emptyForm: FormState = {
   category: '',
   description: '',
   price: '',
+  unit: 'pcs',
+  minCharge: '',
   costPrice: '',
   hsnCode: '',
   taxRate: '',
@@ -60,6 +65,8 @@ const toForm = (p: Product): FormState => ({
   category: p.category ?? '',
   description: p.description ?? '',
   price: String(p.price),
+  unit: unitOf(p.unit),
+  minCharge: p.minCharge ? String(p.minCharge) : '',
   costPrice: String(p.costPrice ?? 0),
   hsnCode: p.hsnCode ?? '',
   taxRate: p.taxRate === null || p.taxRate === undefined ? '' : String(p.taxRate),
@@ -107,6 +114,8 @@ export default function Products() {
       category: form.category,
       description: form.description,
       price: Number(form.price),
+      unit: form.unit,
+      minCharge: form.minCharge === '' ? null : Number(form.minCharge),
       costPrice: form.costPrice === '' ? 0 : Number(form.costPrice),
       hsnCode: form.hsnCode,
       taxRate: form.taxRate === '' ? '' : Number(form.taxRate),
@@ -214,7 +223,8 @@ export default function Products() {
             <tbody className="divide-y divide-slate-100">
               {data.map((p) => {
                 const margin = p.price > 0 ? ((p.price - (p.costPrice ?? 0)) / p.price) * 100 : null;
-                const low = p.stock <= p.lowStockThreshold;
+                const counted = unitOf(p.unit) === 'pcs';
+                const low = counted && p.stock <= p.lowStockThreshold;
                 const madeToOrder = (p.bom?._count.items ?? 0) > 0;
                 return (
                   <tr key={p.id} className="hover:bg-slate-50">
@@ -222,14 +232,17 @@ export default function Products() {
                       <div className="font-medium text-slate-900">{p.name}</div>
                       <div className="text-xs text-slate-500">{[p.sku, p.category].filter(Boolean).join(' · ') || '—'}</div>
                     </Td>
-                    <Td className="text-right tabular-nums">{money(p.price)}</Td>
+                    <Td className="whitespace-nowrap text-right tabular-nums">
+                      {money(p.price)}
+                      {unitOf(p.unit) !== 'pcs' && <span className="text-xs text-slate-500">/{unitLabel(p.unit)}</span>}
+                    </Td>
                     <Td className="text-right tabular-nums">{p.costPrice ? money(p.costPrice) : '—'}</Td>
                     <Td className="text-right tabular-nums">{margin === null || !p.costPrice ? '—' : `${margin.toFixed(0)}%`}</Td>
                     <Td>{p.taxRate === null || p.taxRate === undefined ? <span className="text-slate-400">default</span> : `${p.taxRate}%`}</Td>
                     <Td>{p.hsnCode ?? '—'}</Td>
                     <Td className="text-right">
                       <div className="flex flex-col items-end gap-0.5">
-                        {low ? <Badge tone="red">{p.stock}</Badge> : <span className="tabular-nums">{p.stock}</span>}
+                        {!counted ? <span className="text-xs text-slate-500">per job</span> : low ? <Badge tone="red">{p.stock}</Badge> : <span className="tabular-nums">{p.stock}</span>}
                         {madeToOrder && <span className="text-[11px] text-slate-500">made to order</span>}
                       </div>
                     </Td>
@@ -292,8 +305,20 @@ export default function Products() {
           <Field label="Description" className="sm:col-span-2">
             <Textarea value={form.description} onChange={(e) => set('description', e.target.value)} />
           </Field>
-          <Field label="Selling price *">
+          <Field label={form.unit === 'pcs' ? 'Selling price *' : `Rate per ${unitLabel(form.unit)} *`}>
             <Input type="number" min={0} step="0.01" value={form.price} onChange={(e) => set('price', e.target.value)} required />
+          </Field>
+          <Field label="Sold by" hint={form.unit === 'pcs' ? 'Counted pieces, with stock' : 'Measured per job (made to order, no finished stock)'}>
+            <Select value={form.unit} onChange={(e) => set('unit', e.target.value as Unit)}>
+              {UNIT_KEYS.map((u) => (
+                <option key={u} value={u}>
+                  {u === 'pcs' ? 'Piece' : `Per ${UNITS[u].label}`}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Minimum charge per job (₹)" hint="Smaller jobs are billed at this amount (before GST). Blank = none.">
+            <Input type="number" min={0} step="0.01" value={form.minCharge} onChange={(e) => set('minCharge', e.target.value)} placeholder="e.g. 150" />
           </Field>
           <Field label="Cost price" hint="Used for margin reports">
             <Input type="number" min={0} step="0.01" value={form.costPrice} onChange={(e) => set('costPrice', e.target.value)} />

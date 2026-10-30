@@ -1,5 +1,10 @@
+import fs from 'fs';
+import path from 'path';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
+import { amountInWords } from '../lib/words';
+import { qtyText, unitLabel, unitOf } from '../lib/units';
+import { placeOfSupplyCode, stateLabel } from '../lib/gst';
 import type { BusinessSettings, CreditNote, CreditNoteItem, Customer, Invoice, InvoiceItem, Payment, Quote, QuoteItem } from '@prisma/client';
 import { balanceOf, displayStatus } from './invoice.service';
 import { quoteDisplayStatus } from './quote.service';
@@ -17,7 +22,7 @@ interface SalesDoc {
   status: string;
   customer: Customer;
   placeOfSupply: string | null;
-  items: { name: string; hsnCode: string | null; quantity: number; unitPrice: number; taxRate: number; total: number }[];
+  items: { name: string; hsnCode: string | null; quantity: number; unit?: string; details?: string | null; minCharge?: number | null; unitPrice: number; taxRate: number; total: number }[];
   subtotal: number;
   discount: number;
   igst: number;
@@ -32,16 +37,35 @@ interface SalesDoc {
   notes: string | null;
 }
 
-// The built-in PDF fonts are Latin-1 only, so non-ASCII currency symbols (₹, €) are
-// written as their ISO code to avoid bundling a font file.
+// Noto Sans (SIL Open Font License, backend/assets/fonts) has ₹, which PDFKit's built-in
+// Latin-1 fonts lack. The layout code asks for Body / Bold / Italic; if the font files are
+// missing, those fall back to the built-in Helvetica family and ₹ is written as "Rs.".
+const FONT_DIR = path.resolve(__dirname, '../../assets/fonts');
+const FONTS = [
+  ['Body', 'NotoSans-Regular.ttf', 'Helvetica'],
+  ['Bold', 'NotoSans-Bold.ttf', 'Helvetica-Bold'],
+  ['Italic', 'NotoSans-Italic.ttf', 'Helvetica-Oblique'],
+] as const;
+export const unicodeFonts = FONTS.every(([, file]) => fs.existsSync(path.join(FONT_DIR, file)));
+
+function newPdf(options: PDFKit.PDFDocumentOptions) {
+  const doc = new PDFDocument(options);
+  for (const [name, file, builtIn] of FONTS) doc.registerFont(name, unicodeFonts ? path.join(FONT_DIR, file) : builtIn);
+  doc.font('Body');
+  return doc;
+}
+
 function moneyFormatter(s: BusinessSettings) {
-  const symbol = /^[\x20-\x7e]+$/.test(s.currencySymbol) ? s.currencySymbol : s.currency === 'INR' ? 'Rs. ' : `${s.currency} `;
+  const printable = unicodeFonts || /^[\x20-\x7e]+$/.test(s.currencySymbol);
+  const symbol = printable ? s.currencySymbol : s.currency === 'INR' ? 'Rs. ' : `${s.currency} `;
   const nf = new Intl.NumberFormat(s.currency === 'INR' ? 'en-IN' : 'en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
   return (n: number) => `${symbol}${nf.format(n)}`;
 }
+
+const LF = '\n'; // line break inside a table cell
 
 const fmtDate = (d: Date | null) =>
   d ? d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -94,6 +118,15 @@ export async function renderQuotePdf(q: FullQuote, s: BusinessSettings): Promise
   );
 }
 
+/**
+ * The document title. A GST-registered seller issues a "Tax Invoice" (Rule 46), or a "Bill of
+ * Supply" when nothing on it is taxed (exempt or nil-rated goods). Without a GSTIN: "Invoice".
+ */
+export function salesHeading(title: SalesDoc['title'], s: Pick<BusinessSettings, 'gstNumber'>, taxTotal: number) {
+  if (title !== 'INVOICE' || !s.gstNumber) return title;
+  return taxTotal > 0 ? 'TAX INVOICE' : 'BILL OF SUPPLY';
+}
+
 async function renderSalesPdf(inv: SalesDoc, s: BusinessSettings): Promise<Buffer> {
   const money = moneyFormatter(s);
   const balance = inv.balance ?? 0;
@@ -102,7 +135,7 @@ async function renderSalesPdf(inv: SalesDoc, s: BusinessSettings): Promise<Buffe
   const link = inv.showPayment ? upiLink(s, balance, `Invoice ${inv.number}`) : null;
   const qr = link ? await QRCode.toBuffer(link, { margin: 1, width: 220 }) : null;
 
-  const doc = new PDFDocument({ size: 'A4', margin: 40, info: { Title: `${label} ${inv.number}`, Author: s.businessName } });
+  const doc = newPdf({ size: 'A4', margin: 40, info: { Title: `${label} ${inv.number}`, Author: s.businessName } });
   const chunks: Buffer[] = [];
   doc.on('data', (c: Buffer) => chunks.push(c));
   const done = new Promise<Buffer>((resolve, reject) => {
@@ -127,53 +160,57 @@ async function renderSalesPdf(inv: SalesDoc, s: BusinessSettings): Promise<Buffe
     }
   }
   const bizX = logo ? left + 85 : left;
-  doc.fillColor('#111827').font('Helvetica-Bold').fontSize(16).text(s.businessName, bizX, y, { width: 260 });
-  doc.font('Helvetica').fontSize(9).fillColor(muted);
+  doc.fillColor('#111827').font('Bold').fontSize(16).text(s.businessName, bizX, y, { width: 260 });
+  doc.font('Body').fontSize(9).fillColor(muted);
   const bizLines = [s.address, [s.phone, s.email].filter(Boolean).join(' | '), s.website, s.gstNumber ? `GSTIN: ${s.gstNumber}` : null]
     .filter(Boolean)
     .join('\n');
   if (bizLines) doc.text(bizLines, bizX, doc.y + 2, { width: 260 });
 
-  doc.font('Helvetica-Bold').fontSize(22).fillColor(accent).text(inv.title, left, y, { width, align: 'right' });
-  doc.font('Helvetica').fontSize(9).fillColor('#111827');
+  const heading = salesHeading(inv.title, s, inv.igst + inv.cgst + inv.sgst);
+  doc.font('Bold').fontSize(22).fillColor(accent).text(heading, left, y, { width, align: 'right' });
+  doc.font('Body').fontSize(9).fillColor('#111827');
   const status = inv.status;
   doc.text(`No: ${inv.number}`, left, y + 30, { width, align: 'right' });
   doc.text(`Date: ${fmtDate(inv.date)}`, { width, align: 'right' });
   doc.text(`${inv.dueLabel}: ${fmtDate(inv.dueDate)}`, { width, align: 'right' });
-  doc.font('Helvetica-Bold').fillColor(['PAID', 'ACCEPTED', 'CONVERTED'].includes(status) ? '#059669' : ['OVERDUE', 'EXPIRED', 'DECLINED'].includes(status) ? '#dc2626' : muted);
+  doc.font('Bold').fillColor(['PAID', 'ACCEPTED', 'CONVERTED'].includes(status) ? '#059669' : ['OVERDUE', 'EXPIRED', 'DECLINED'].includes(status) ? '#dc2626' : muted);
   doc.text(status, { width, align: 'right' });
 
   // Bill to ----------------------------------------------------------------
   y = Math.max(doc.y, 130) + 15;
   doc.moveTo(left, y).lineTo(right, y).strokeColor('#e5e7eb').stroke();
   y += 10;
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(muted).text(inv.title === 'INVOICE' ? 'BILL TO' : 'PREPARED FOR', left, y);
+  doc.font('Bold').fontSize(9).fillColor(muted).text(inv.title === 'INVOICE' ? 'BILL TO' : 'PREPARED FOR', left, y);
   const c = inv.customer;
-  doc.font('Helvetica-Bold').fontSize(11).fillColor('#111827').text(c.name, left, y + 12);
-  doc.font('Helvetica').fontSize(9).fillColor('#374151');
+  doc.font('Bold').fontSize(11).fillColor('#111827').text(c.name, left, y + 12);
+  doc.font('Body').fontSize(9).fillColor('#374151');
   const custLines = [c.address, [c.city, c.state].filter(Boolean).join(', '), c.phone, c.email, c.gstin ? `GSTIN: ${c.gstin}` : null]
     .filter(Boolean)
     .join('\n');
   if (custLines) doc.text(custLines, left, doc.y + 1, { width: 280 });
   const billToEnd = doc.y;
-  if (inv.placeOfSupply) {
-    doc.font('Helvetica').fontSize(9).fillColor(muted).text(`Place of supply: ${inv.placeOfSupply}`, left, y, { width, align: 'right' });
+  const posCode = placeOfSupplyCode(inv.placeOfSupply, c.state, c.gstin);
+  if (inv.placeOfSupply || posCode) {
+    const pos = posCode ? stateLabel(posCode).replace(/^(\d+)-(.*)$/, '$2 ($1)') : inv.placeOfSupply;
+    doc.font('Body').fontSize(9).fillColor(muted).text(`Place of supply: ${pos}`, left, y, { width, align: 'right' });
+    if (heading === 'TAX INVOICE') doc.text('Tax payable on reverse charge: No', left, doc.y, { width, align: 'right' });
   }
 
   // Items table ------------------------------------------------------------
   y = billToEnd + 18;
   const cols = [
     { key: '#', w: 22, align: 'left' as const },
-    { key: 'Item', w: 196, align: 'left' as const },
+    { key: 'Item', w: 176, align: 'left' as const },
     { key: 'HSN', w: 50, align: 'left' as const },
-    { key: 'Qty', w: 38, align: 'right' as const },
+    { key: 'Qty', w: 58, align: 'right' as const },
     { key: 'Rate', w: 70, align: 'right' as const },
     { key: 'Tax', w: 42, align: 'right' as const },
     { key: 'Amount', w: width - 418, align: 'right' as const },
   ];
   const drawRow = (vals: string[], rowY: number, bold = false) => {
     let x = left + 6;
-    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+    doc.font(bold ? 'Bold' : 'Body').fontSize(9);
     let h = 0;
     cols.forEach((col, i) => {
       doc.text(vals[i] ?? '', x, rowY, { width: col.w - 8, align: col.align });
@@ -193,19 +230,61 @@ async function renderSalesPdf(inv: SalesDoc, s: BusinessSettings): Promise<Buffe
       y = 40;
     }
     const h = drawRow(
-      [String(idx + 1), item.name, item.hsnCode ?? '', String(item.quantity), money(item.unitPrice), `${item.taxRate}%`, money(item.total)],
+      [
+        String(idx + 1),
+        [item.name, item.details, item.minCharge ? `Minimum charge ${money(item.minCharge)}` : null].filter(Boolean).join(LF),
+        item.hsnCode ?? '',
+        qtyText(item.quantity, item.unit),
+        unitOf(item.unit) === 'pcs' ? money(item.unitPrice) : `${money(item.unitPrice)}/${unitLabel(item.unit)}`,
+        `${item.taxRate}%`,
+        money(item.total),
+      ],
       y,
     );
     y += Math.max(h, 12) + 8;
     doc.moveTo(left, y - 4).lineTo(right, y - 4).strokeColor('#f3f4f6').stroke();
   });
 
+  // Tax by rate (taxable value after discount), as GST invoices show it ----------
+  if (heading === 'TAX INVOICE') {
+    const ratio = inv.subtotal > 0 ? (inv.subtotal - inv.discount) / inv.subtotal : 0;
+    const inter = inv.igst > 0 && inv.cgst === 0;
+    const byRate = new Map<number, { taxable: number; tax: number }>();
+    for (const it of inv.items) {
+      const r = byRate.get(it.taxRate) ?? { taxable: 0, tax: 0 };
+      r.taxable += it.total * ratio;
+      r.tax += Math.round(it.total * ratio * it.taxRate) / 100;
+      byRate.set(it.taxRate, r);
+    }
+    const rows = [...byRate.entries()].sort((a, b) => a[0] - b[0]);
+    if (y > doc.page.height - 260) {
+      doc.addPage();
+      y = 40;
+    }
+    y += 4;
+    const tcols = inter ? ['GST rate', 'Taxable value', 'IGST'] : ['GST rate', 'Taxable value', 'CGST', 'SGST'];
+    const tw = 300 / tcols.length;
+    const trow = (vals: string[], bold = false) => {
+      doc.font(bold ? 'Bold' : 'Body').fontSize(8).fillColor(bold ? '#374151' : '#111827');
+      vals.forEach((v, i) => doc.text(v, left + i * tw, y, { width: tw - 6, align: i === 0 ? 'left' : 'right' }));
+      y += 12;
+    };
+    trow(tcols, true);
+    for (const [rate, r] of rows) {
+      const tax = Math.round(r.tax * 100) / 100;
+      const half = Math.round((tax / 2) * 100) / 100;
+      trow(inter ? [`${rate}%`, money(r.taxable), money(tax)] : [`${rate}%`, money(r.taxable), money(half), money(Math.round((tax - half) * 100) / 100)]);
+    }
+    doc.moveTo(left, y).lineTo(left + 300, y).strokeColor('#f3f4f6').stroke();
+    y += 4;
+  }
+
   // Totals ------------------------------------------------------------------
   y += 6;
   const totalsTop = y;
   const totalsX = right - 220;
   const line = (label: string, value: string, bold = false, color = '#111827') => {
-    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 11 : 9).fillColor(color);
+    doc.font(bold ? 'Bold' : 'Body').fontSize(bold ? 11 : 9).fillColor(color);
     doc.text(label, totalsX, y, { width: 110 });
     doc.text(value, totalsX + 110, y, { width: 110, align: 'right' });
     y += bold ? 18 : 14;
@@ -222,6 +301,7 @@ async function renderSalesPdf(inv: SalesDoc, s: BusinessSettings): Promise<Buffe
   if (inv.credited > 0) line('Credit notes', `- ${money(inv.credited)}`, false, '#059669');
   if (inv.paid > 0) line('Paid', money(inv.paid), false, '#059669');
   if (inv.balance !== null) line('Balance due', money(balance), true, balance > 0 ? accent : '#059669');
+  const totalsEnd = y;
 
   // Payment details + QR (left column, beside totals) -----------------------
   const payY = totalsTop;
@@ -232,32 +312,62 @@ async function renderSalesPdf(inv: SalesDoc, s: BusinessSettings): Promise<Buffe
     s.upiId ? `UPI: ${s.upiId}` : null,
   ].filter(Boolean);
   if (inv.showPayment && (payLines.length || qr)) {
-    doc.font('Helvetica-Bold').fontSize(9).fillColor(muted).text('PAYMENT DETAILS', left, payY);
-    doc.font('Helvetica').fontSize(9).fillColor('#374151').text(payLines.join('\n'), left, payY + 12, { width: 160 });
+    doc.font('Bold').fontSize(9).fillColor(muted).text('PAYMENT DETAILS', left, payY);
+    doc.font('Body').fontSize(9).fillColor('#374151').text(payLines.join('\n'), left, payY + 12, { width: 160 });
     if (qr) {
       doc.image(qr, left + 165, payY, { width: 80 });
       doc.fontSize(7).fillColor(muted).text('Scan to pay via UPI', left + 165, payY + 82, { width: 80, align: 'center' });
     }
   }
 
+  // Amount in words ------------------------------------------------------------
+  y = inv.showPayment && (payLines.length || qr) ? Math.max(totalsEnd, payY + 110) + 6 : totalsEnd + 6;
+  doc.font('Bold').fontSize(8).fillColor(muted).text('AMOUNT IN WORDS', left, y);
+  doc.font('Body').fontSize(9).fillColor('#111827').text(amountInWords(inv.grandTotal, s.currency || 'INR'), left, doc.y + 1, { width });
+  y = doc.y + 10;
+
   // Notes & footer ------------------------------------------------------------
-  y = inv.showPayment ? Math.max(y, payY + 110) + 10 : y + 10;
   const footerBlocks: [string, string | null][] = [
     ['Notes', inv.notes],
     ['Terms & Conditions', s.termsConditions],
   ];
   for (const [title, body] of footerBlocks) {
     if (!body) continue;
-    doc.font('Helvetica-Bold').fontSize(9).fillColor(muted).text(title.toUpperCase(), left, y);
-    doc.font('Helvetica').fontSize(9).fillColor('#374151').text(body, left, doc.y + 2, { width });
+    doc.font('Bold').fontSize(9).fillColor(muted).text(title.toUpperCase(), left, y);
+    doc.font('Body').fontSize(9).fillColor('#374151').text(body, left, doc.y + 2, { width });
     y = doc.y + 10;
   }
+  y = signatureBlock(doc, s, y, right);
   const thanks = s.thankYouMessage || 'Thank you for your business!';
-  doc.font('Helvetica-Oblique').fontSize(10).fillColor(accent).text(thanks, left, y + 4, { width, align: 'center' });
-  if (s.invoiceFooter) doc.font('Helvetica').fontSize(8).fillColor(muted).text(s.invoiceFooter, { width, align: 'center' });
+  doc.font('Italic').fontSize(10).fillColor(accent).text(thanks, left, y + 4, { width, align: 'center' });
+  if (s.invoiceFooter) doc.font('Body').fontSize(8).fillColor(muted).text(s.invoiceFooter, { width, align: 'center' });
 
   doc.end();
   return done;
+}
+
+/** "For <business>", the signature image if one is set, and "Authorised Signatory". Returns the y below it. */
+function signatureBlock(doc: PDFKit.PDFDocument, s: BusinessSettings, y: number, right: number) {
+  if (y > doc.page.height - 140) {
+    doc.addPage();
+    y = 40;
+  }
+  const w = 180;
+  const x = right - w;
+  doc.font('Bold').fontSize(9).fillColor('#111827').text(`For ${s.businessName}`, x, y, { width: w, align: 'right' });
+  const sig = dataUrlToBuffer(s.signatureUrl);
+  let top = doc.y + 4;
+  if (sig) {
+    try {
+      doc.image(sig, right - 120, top, { fit: [120, 40], align: 'right' });
+    } catch {
+      /* unreadable image: leave the space for a signature */
+    }
+  }
+  top += 44;
+  doc.moveTo(x + 40, top).lineTo(right, top).strokeColor('#d1d5db').stroke();
+  doc.font('Body').fontSize(8).fillColor('#6b7280').text('Authorised Signatory', x, top + 3, { width: w, align: 'right' });
+  return doc.y + 10;
 }
 
 type FullCreditNote = CreditNote & {
@@ -277,7 +387,7 @@ const REASON_LABELS: Record<string, string> = {
 /** A GST credit note: same layout family as the invoice, showing tax reversed per line. */
 export async function renderCreditNotePdf(cn: FullCreditNote, s: BusinessSettings): Promise<Buffer> {
   const money = moneyFormatter(s);
-  const doc = new PDFDocument({ size: 'A4', margin: 40, info: { Title: `Credit note ${cn.creditNoteNumber}`, Author: s.businessName } });
+  const doc = newPdf({ size: 'A4', margin: 40, info: { Title: `Credit note ${cn.creditNoteNumber}`, Author: s.businessName } });
   const chunks: Buffer[] = [];
   doc.on('data', (c: Buffer) => chunks.push(c));
   const done = new Promise<Buffer>((resolve, reject) => {
@@ -292,31 +402,31 @@ export async function renderCreditNotePdf(cn: FullCreditNote, s: BusinessSetting
   const muted = '#6b7280';
 
   let y = 40;
-  doc.fillColor('#111827').font('Helvetica-Bold').fontSize(16).text(s.businessName, left, y, { width: 280 });
-  doc.font('Helvetica').fontSize(9).fillColor(muted);
+  doc.fillColor('#111827').font('Bold').fontSize(16).text(s.businessName, left, y, { width: 280 });
+  doc.font('Body').fontSize(9).fillColor(muted);
   const bizLines = [s.address, [s.phone, s.email].filter(Boolean).join(' | '), s.gstNumber ? `GSTIN: ${s.gstNumber}` : null].filter(Boolean).join('\n');
   if (bizLines) doc.text(bizLines, left, doc.y + 2, { width: 280 });
 
-  doc.font('Helvetica-Bold').fontSize(20).fillColor(accent).text('CREDIT NOTE', left, y, { width, align: 'right' });
-  doc.font('Helvetica').fontSize(9).fillColor('#111827');
+  doc.font('Bold').fontSize(20).fillColor(accent).text('CREDIT NOTE', left, y, { width, align: 'right' });
+  doc.font('Body').fontSize(9).fillColor('#111827');
   doc.text(`No: ${cn.creditNoteNumber}`, left, y + 28, { width, align: 'right' });
   doc.text(`Date: ${fmtDate(cn.date)}`, { width, align: 'right' });
   doc.text(`Against invoice: ${cn.invoice.invoiceNumber} (${fmtDate(cn.invoice.date)})`, { width, align: 'right' });
   doc.text(`Reason: ${REASON_LABELS[cn.reason] ?? cn.reason}`, { width, align: 'right' });
-  if (cn.status === 'CANCELLED') doc.font('Helvetica-Bold').fillColor('#dc2626').text('CANCELLED', { width, align: 'right' });
+  if (cn.status === 'CANCELLED') doc.font('Bold').fillColor('#dc2626').text('CANCELLED', { width, align: 'right' });
 
   y = Math.max(doc.y, 120) + 15;
   doc.moveTo(left, y).lineTo(right, y).strokeColor('#e5e7eb').stroke();
   y += 10;
   const c = cn.customer;
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(muted).text('CUSTOMER', left, y);
-  doc.font('Helvetica-Bold').fontSize(11).fillColor('#111827').text(c.name, left, y + 12);
-  doc.font('Helvetica').fontSize(9).fillColor('#374151');
+  doc.font('Bold').fontSize(9).fillColor(muted).text('CUSTOMER', left, y);
+  doc.font('Bold').fontSize(11).fillColor('#111827').text(c.name, left, y + 12);
+  doc.font('Body').fontSize(9).fillColor('#374151');
   const custLines = [c.address, [c.city, c.state].filter(Boolean).join(', '), c.gstin ? `GSTIN: ${c.gstin}` : null].filter(Boolean).join('\n');
   if (custLines) doc.text(custLines, left, doc.y + 1, { width: 280 });
   const custEnd = doc.y;
   if (cn.invoice.placeOfSupply) {
-    doc.font('Helvetica').fontSize(9).fillColor(muted).text(`Place of supply: ${cn.invoice.placeOfSupply}`, left, y, { width, align: 'right' });
+    doc.font('Body').fontSize(9).fillColor(muted).text(`Place of supply: ${cn.invoice.placeOfSupply}`, left, y, { width, align: 'right' });
   }
 
   y = custEnd + 18;
@@ -331,7 +441,7 @@ export async function renderCreditNotePdf(cn: FullCreditNote, s: BusinessSetting
   const drawRow = (vals: string[], rowY: number, bold = false) => {
     let x = left + 6;
     let h = 0;
-    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+    doc.font(bold ? 'Bold' : 'Body').fontSize(9);
     cols.forEach((col, i) => {
       doc.text(vals[i] ?? '', x, rowY, { width: col.w - 8, align: col.align });
       h = Math.max(h, doc.heightOfString(vals[i] ?? '', { width: col.w - 8 }));
@@ -350,7 +460,7 @@ export async function renderCreditNotePdf(cn: FullCreditNote, s: BusinessSetting
       y = 40;
     }
     const h = drawRow(
-      [it.name, it.hsnCode ?? '', it.quantity ? String(it.quantity) : '-', money(it.taxableValue), `${money(it.taxAmount)} (${it.taxRate}%)`, money(it.taxableValue + it.taxAmount)],
+      [it.name, it.hsnCode ?? '', it.quantity ? String(Number(it.quantity.toFixed(3))) : '-', money(it.taxableValue), `${money(it.taxAmount)} (${it.taxRate}%)`, money(it.taxableValue + it.taxAmount)],
       y,
     );
     y += Math.max(h, 12) + 8;
@@ -359,7 +469,7 @@ export async function renderCreditNotePdf(cn: FullCreditNote, s: BusinessSetting
   y += 6;
   const totalsX = right - 220;
   const line = (label: string, value: string, bold = false) => {
-    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 11 : 9).fillColor('#111827');
+    doc.font(bold ? 'Bold' : 'Body').fontSize(bold ? 11 : 9).fillColor('#111827');
     doc.text(label, totalsX, y, { width: 110 });
     doc.text(value, totalsX + 110, y, { width: 110, align: 'right' });
     y += bold ? 18 : 14;
@@ -376,10 +486,14 @@ export async function renderCreditNotePdf(cn: FullCreditNote, s: BusinessSetting
 
   if (cn.notes) {
     y += 10;
-    doc.font('Helvetica-Bold').fontSize(9).fillColor(muted).text('NOTES', left, y);
-    doc.font('Helvetica').fontSize(9).fillColor('#374151').text(cn.notes, left, doc.y + 2, { width });
+    doc.font('Bold').fontSize(9).fillColor(muted).text('NOTES', left, y);
+    doc.font('Body').fontSize(9).fillColor('#374151').text(cn.notes, left, doc.y + 2, { width });
   }
 
+  y = Math.max(y, doc.y) + 8;
+  doc.font('Bold').fontSize(8).fillColor(muted).text('AMOUNT IN WORDS', left, y);
+  doc.font('Body').fontSize(9).fillColor('#111827').text(amountInWords(cn.total, s.currency || 'INR'), left, doc.y + 1, { width });
+  signatureBlock(doc, s, doc.y + 12, right);
   doc.end();
   return done;
 }
@@ -402,7 +516,7 @@ export async function renderStatementPdf(st: StatementPdf, s: BusinessSettings):
   const link = upiLink(s, st.amountDue, `${st.customer.name} statement`);
   const qr = link ? await QRCode.toBuffer(link, { margin: 1, width: 220 }) : null;
 
-  const doc = new PDFDocument({ size: 'A4', margin: 40, info: { Title: `Statement ${st.customer.name}`, Author: s.businessName } });
+  const doc = newPdf({ size: 'A4', margin: 40, info: { Title: `Statement ${st.customer.name}`, Author: s.businessName } });
   const chunks: Buffer[] = [];
   doc.on('data', (c: Buffer) => chunks.push(c));
   const done = new Promise<Buffer>((resolve, reject) => {
@@ -418,12 +532,12 @@ export async function renderStatementPdf(st: StatementPdf, s: BusinessSettings):
   const signed = (n: number) => (n < 0 ? `${money(-n)} Cr` : money(n));
 
   let y = 40;
-  doc.fillColor('#111827').font('Helvetica-Bold').fontSize(16).text(s.businessName, left, y, { width: 280 });
-  doc.font('Helvetica').fontSize(9).fillColor(muted);
+  doc.fillColor('#111827').font('Bold').fontSize(16).text(s.businessName, left, y, { width: 280 });
+  doc.font('Body').fontSize(9).fillColor(muted);
   const bizLines = [s.address, [s.phone, s.email].filter(Boolean).join(' | '), s.gstNumber ? `GSTIN: ${s.gstNumber}` : null].filter(Boolean).join('\n');
   if (bizLines) doc.text(bizLines, left, doc.y + 2, { width: 280 });
-  doc.font('Helvetica-Bold').fontSize(18).fillColor(accent).text('STATEMENT OF ACCOUNT', left, y, { width, align: 'right' });
-  doc.font('Helvetica').fontSize(9).fillColor('#111827');
+  doc.font('Bold').fontSize(18).fillColor(accent).text('STATEMENT OF ACCOUNT', left, y, { width, align: 'right' });
+  doc.font('Body').fontSize(9).fillColor('#111827');
   doc.text(`Period: ${fmtDate(st.period.from)} to ${fmtDate(st.period.to)}`, left, y + 26, { width, align: 'right' });
   doc.text(`Issued: ${fmtDate(new Date())}`, { width, align: 'right' });
 
@@ -431,15 +545,15 @@ export async function renderStatementPdf(st: StatementPdf, s: BusinessSettings):
   doc.moveTo(left, y).lineTo(right, y).strokeColor('#e5e7eb').stroke();
   y += 10;
   const c = st.customer;
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(muted).text('CUSTOMER', left, y);
-  doc.font('Helvetica-Bold').fontSize(11).fillColor('#111827').text(c.name, left, y + 12);
-  doc.font('Helvetica').fontSize(9).fillColor('#374151');
+  doc.font('Bold').fontSize(9).fillColor(muted).text('CUSTOMER', left, y);
+  doc.font('Bold').fontSize(11).fillColor('#111827').text(c.name, left, y + 12);
+  doc.font('Body').fontSize(9).fillColor('#374151');
   const custLines = [c.address, [c.city, c.state].filter(Boolean).join(', '), c.gstin ? `GSTIN: ${c.gstin}` : null].filter(Boolean).join('\n');
   if (custLines) doc.text(custLines, left, doc.y + 1, { width: 280 });
   const custEnd = doc.y;
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(muted).text('AMOUNT DUE', left, y, { width, align: 'right' });
-  doc.font('Helvetica-Bold').fontSize(16).fillColor(st.amountDue > 0 ? accent : '#059669').text(money(st.amountDue), left, y + 12, { width, align: 'right' });
-  if (st.overdue > 0) doc.font('Helvetica').fontSize(9).fillColor('#dc2626').text(`of which overdue: ${money(st.overdue)}`, left, doc.y, { width, align: 'right' });
+  doc.font('Bold').fontSize(9).fillColor(muted).text('AMOUNT DUE', left, y, { width, align: 'right' });
+  doc.font('Bold').fontSize(16).fillColor(st.amountDue > 0 ? accent : '#059669').text(money(st.amountDue), left, y + 12, { width, align: 'right' });
+  if (st.overdue > 0) doc.font('Body').fontSize(9).fillColor('#dc2626').text(`of which overdue: ${money(st.overdue)}`, left, doc.y, { width, align: 'right' });
 
   // Transactions -------------------------------------------------------------
   y = Math.max(custEnd, doc.y) + 18;
@@ -453,7 +567,7 @@ export async function renderStatementPdf(st: StatementPdf, s: BusinessSettings):
   ];
   const row = (vals: string[], rowY: number, bold = false) => {
     let x = left + 6;
-    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+    doc.font(bold ? 'Bold' : 'Body').fontSize(9);
     let h = 0;
     cols.forEach((col, i) => {
       doc.text(vals[i] ?? '', x, rowY, { width: col.w - 8, align: col.align });
@@ -490,9 +604,9 @@ export async function renderStatementPdf(st: StatementPdf, s: BusinessSettings):
   y += 12;
   const blockTop = y;
   if (st.openInvoices.length) {
-    doc.font('Helvetica-Bold').fontSize(9).fillColor(muted).text('UNPAID INVOICES', left, y);
+    doc.font('Bold').fontSize(9).fillColor(muted).text('UNPAID INVOICES', left, y);
     y += 14;
-    doc.font('Helvetica').fontSize(9).fillColor('#374151');
+    doc.font('Body').fontSize(9).fillColor('#374151');
     for (const i of st.openInvoices.slice(0, 15)) {
       const overdue = i.status === 'OVERDUE';
       doc.fillColor(overdue ? '#dc2626' : '#374151').text(`${i.invoiceNumber}  ·  due ${fmtDate(i.dueDate)}${overdue ? ' (overdue)' : ''}`, left, y, { width: 220 });
@@ -507,15 +621,15 @@ export async function renderStatementPdf(st: StatementPdf, s: BusinessSettings):
   const payLines = [s.bankName ? `Bank: ${s.bankName}` : null, s.accountNumber ? `A/C: ${s.accountNumber}` : null, s.ifscCode ? `IFSC: ${s.ifscCode}` : null, s.upiId ? `UPI: ${s.upiId}` : null].filter(Boolean);
   if (st.amountDue > 0 && (payLines.length || qr)) {
     const px = right - 230;
-    doc.font('Helvetica-Bold').fontSize(9).fillColor(muted).text('HOW TO PAY', px, blockTop);
-    doc.font('Helvetica').fontSize(9).fillColor('#374151').text(payLines.join('\n'), px, blockTop + 14, { width: 140 });
+    doc.font('Bold').fontSize(9).fillColor(muted).text('HOW TO PAY', px, blockTop);
+    doc.font('Body').fontSize(9).fillColor('#374151').text(payLines.join('\n'), px, blockTop + 14, { width: 140 });
     if (qr) {
       doc.image(qr, px + 145, blockTop, { width: 80 });
       doc.fontSize(7).fillColor(muted).text('Scan to pay via UPI', px + 145, blockTop + 82, { width: 80, align: 'center' });
     }
     y = Math.max(y, blockTop + 100);
   }
-  doc.font('Helvetica-Oblique').fontSize(9).fillColor(muted).text('Please let us know if anything on this statement looks wrong.', left, y + 16, { width, align: 'center' });
+  doc.font('Italic').fontSize(9).fillColor(muted).text('Please let us know if anything on this statement looks wrong.', left, y + 16, { width, align: 'center' });
 
   doc.end();
   return done;

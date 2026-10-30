@@ -4,6 +4,7 @@ import prisma from '../lib/prisma';
 import { badRequest, notFound } from '../lib/errors';
 import { optDate, optStr } from '../lib/util';
 import { buildInvoiceLines, createInvoice, invoiceItemInput } from './invoice.service';
+import { unitOf } from '../lib/units';
 import { getSettings } from './settings.service';
 
 type Tx = Prisma.TransactionClient;
@@ -159,6 +160,8 @@ export async function convertQuote(id: string, { issue = false } = {}) {
       name: i.name,
       hsnCode: i.hsnCode,
       quantity: i.quantity,
+      unit: unitOf(i.unit),
+      details: i.details,
       unitPrice: i.unitPrice,
       taxRate: i.taxRate,
     })),
@@ -192,6 +195,8 @@ export async function duplicateQuote(id: string) {
       name: i.name,
       hsnCode: i.hsnCode,
       quantity: i.quantity,
+      unit: unitOf(i.unit),
+      details: i.details,
       unitPrice: i.unitPrice,
       taxRate: i.taxRate,
     })),

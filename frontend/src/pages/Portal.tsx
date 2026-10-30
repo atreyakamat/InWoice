@@ -26,6 +26,7 @@ interface PortalData {
   outstanding: number;
   overdue: number;
   payAllLink: string | null;
+  payOnline?: boolean;
   invoices: { id: string; invoiceNumber: string; date: string; dueDate: string | null; grandTotal: number; balance: number; status: string; payLink: string | null }[];
   quotes: { id: string; quoteNumber: string; date: string; validUntil: string | null; grandTotal: number; status: string }[];
 }
@@ -58,7 +59,13 @@ export default function Portal() {
   }, [token]);
   const [qr, setQr] = useState<{ title: string; src: string; link: string | null } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  // Coming back from the online checkout: ?paid=<invoice> or ?payError=<message>.
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('paid')) return { ok: true, text: `Thank you! Your payment for ${q.get('paid')} will show here as soon as it is confirmed.` };
+    if (q.get('payError')) return { ok: false, text: q.get('payError')! };
+    return null;
+  });
 
   if (loading && !data) return <Spinner label="Loading your account…" />;
   if (error || !data) {
@@ -195,13 +202,25 @@ export default function Portal() {
                       <Download size={13} /> PDF
                     </Button>
                   </a>
+                  {data.payOnline && (
+                    <a href={`${base}/invoices/${i.id}/pay`}>
+                      <Button size="sm">Pay now</Button>
+                    </a>
+                  )}
                   {i.payLink && (
                     <>
                       <a href={i.payLink} className="sm:hidden">
-                        <Button size="sm">Pay</Button>
+                        <Button size="sm" variant={data.payOnline ? 'secondary' : 'primary'}>
+                          {data.payOnline ? 'UPI app' : 'Pay'}
+                        </Button>
                       </a>
-                      <Button size="sm" className="hidden sm:inline-flex" onClick={() => setQr({ title: `Pay ${i.invoiceNumber}: ${money(i.balance)}`, src: `${base}/qr.png?invoice=${i.id}`, link: i.payLink })}>
-                        <QrCode size={13} /> Pay
+                      <Button
+                        size="sm"
+                        variant={data.payOnline ? 'secondary' : 'primary'}
+                        className="hidden sm:inline-flex"
+                        onClick={() => setQr({ title: `Pay ${i.invoiceNumber}: ${money(i.balance)}`, src: `${base}/qr.png?invoice=${i.id}`, link: i.payLink })}
+                      >
+                        <QrCode size={13} /> {data.payOnline ? 'UPI QR' : 'Pay'}
                       </Button>
                     </>
                   )}

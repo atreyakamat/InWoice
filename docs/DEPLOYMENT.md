@@ -167,6 +167,67 @@ Always take a backup before updating.
 
 ---
 
+## Online payments with YouPI-PG (optional)
+
+[YouPI-PG](https://github.com/youpi-pg/YouPI-PG) is a self-hosted UPI gateway with no
+per-transaction fee. With it, invoices get a **Pay now** link (email, WhatsApp, customer
+portal, and an *Open checkout* button on the invoice for counter sales).
+
+1. Install and run YouPI on a server you control (see its README). Note its payment API
+   address (port 6100, or the public `https://pay.yourdomain.com`), your merchant ID and the
+   webhook secret.
+2. In InWoice, Settings › Payments › **Online payments (YouPI)**: tick *Offer online payment*,
+   enter the address, merchant ID and secret, press *Test connection*, then *Save*.
+3. Copy the **Webhook URL** shown there into YouPI's merchant admin. It must be reachable from
+   the YouPI server, so set your public address (Settings › Business or `APP_URL`) first.
+   In multi-business mode each business uses its own subdomain in this URL.
+
+How it works: *Pay now* creates a YouPI checkout for what the invoice still owes and sends the
+customer there. YouPI posts a webhook signed with HMAC-SHA256 (`X-Gateway-Signature`, or
+`X-Gateway-Signature-V2` with a timestamp); InWoice checks the signature on the raw bytes and
+records the payment once, with the UTR as the reference. Open checkouts are re-checked every
+30 minutes in case a webhook was missed, and *Check status* on the invoice does it on demand.
+A payment that arrives after the invoice was already settled, or for a different amount, is
+recorded as far as is due and flagged in the customer's activity for you to refund or credit.
+
+YouPI describes itself as experimental (it confirms payments by reading bank SMS/email
+alerts), so keep reconciling online payments with Bank › import.
+
+## Connect Gmail (send from your own Gmail, PDF attached)
+
+Each user can connect their Gmail once (Settings › Email › Gmail › **Connect Gmail**). Then
+*Email › My Gmail* sends the invoice or quote from their Gmail with the PDF attached, and it
+appears in their Gmail Sent folder. No SMTP setup is needed. InWoice asks Google only for
+the `gmail.send` permission: it can send as the user, never read their mail. An admin can
+also choose one connected Gmail to send the automatic emails (reminders, statements, the
+monthly summary) instead of SMTP.
+
+One-time setup by an admin (free):
+
+1. In [Google Cloud › Credentials](https://console.cloud.google.com/apis/credentials), create a
+   project and enable the **Gmail API**.
+2. OAuth consent screen: type *External*, add your Gmail address(es) as test users, then
+   **Publish app**. (In "Testing" status Google expires the access after 7 days.)
+3. Create credentials › OAuth client ID › *Web application*. Add the redirect URI shown in
+   Settings › Email › Gmail (`https://<your address>/api/google/callback`; for a local install
+   `http://localhost:5000/api/google/callback`).
+4. Paste the client ID and secret into Settings › Email › Gmail, or set `GOOGLE_CLIENT_ID` /
+   `GOOGLE_CLIENT_SECRET` in `backend/.env` for every business on the server.
+
+Google shows "Google hasn't verified this app" the first time; it is your own app, so choose
+*Advanced › Continue*. In multi-business mode each business's address must be added as a
+redirect URI, or each business uses its own Google client.
+
+## Opening Gmail in a chosen browser
+
+When InWoice runs on the same computer you use (opened at `http://localhost:5000`),
+Settings › Email › **Open Gmail in** lists the browsers installed there (Chrome, Edge, Brave,
+Firefox, Safari) and their profiles with the Google account each uses. Pick one, and
+*Email › Gmail/Outlook* opens the ready-written email in that browser and profile. For safety
+this only works from localhost, never through a proxy or in multi-business mode, only starts
+browsers found installed, and only opens Gmail/Outlook addresses. On a hosted install, Gmail
+opens in the browser you are using.
+
 ## Monitoring
 
 - `GET /health` returns `status`, the database check, `version`, `uptimeSeconds`,

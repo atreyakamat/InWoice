@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { useCallback, useEffect, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { titleCase } from '../lib/format';
@@ -42,7 +42,7 @@ export function Button({
 const fieldClass =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:bg-slate-100';
 
-export const Input = ({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) => (
+export const Input = ({ className, ...props }: InputHTMLAttributes<HTMLInputElement> & { ref?: Ref<HTMLInputElement> }) => (
   <input className={cn(fieldClass, className)} {...props} />
 );
 

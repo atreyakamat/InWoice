@@ -40,6 +40,7 @@ const PAGES = [
   ['/activity', 'Activity log'],
   ['/bank', 'Bank'],
   ['/actions', 'Actions'],
+  ['/pos', 'Point of sale'],
   ['/settings', 'Settings'],
 ];
 
