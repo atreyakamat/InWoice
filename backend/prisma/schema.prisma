@@ -1,5 +1,7 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // native = this machine; musl + OpenSSL 3 = the Docker image (node:22-alpine).
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -111,6 +113,18 @@ model BusinessSettings {
   googleClientSecret   String?
   // Automatic emails (reminders, statements, summaries) go out through this user's Gmail; null = SMTP.
   autoMailUserId       String?
+  // Online shop sync (Stix N Vibes shop or any shop with the same order feed): orders
+  // become customers and invoices. The cursor is the shop's updatedAt of the last order read.
+  shopSyncEnabled      Boolean   @default(false)
+  shopUrl              String?
+  shopSyncToken        String?
+  shopSyncCursor       String?
+  shopSyncLastAt       DateTime?
+  shopSyncLastError    String?
+  // GST already included in shop prices (0 = shop sales carry no GST), and the HSN/SAC
+  // code put on shop invoice lines.
+  shopGstRate          Float     @default(0)
+  shopHsnCode          String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 }
@@ -231,7 +245,7 @@ model Invoice {
   date           DateTime          @default(now())
   dueDate        DateTime?
   placeOfSupply  String?
-  source         String? // POS for counter sales; null for invoices made in the editor
+  source         String? // POS for counter sales, SHOP for online shop orders; null for invoices made in the editor
   subtotal       Float
   discount       Float             @default(0)
   taxAmount      Float             @default(0)
@@ -251,6 +265,7 @@ model Invoice {
   notes          String?
   recurringId    String?
   recurring      RecurringInvoice? @relation(fields: [recurringId], references: [id], onDelete: SetNull)
+  shopOrderRef   String?           @unique // order number (SNV-…) for invoices made by the shop sync
   quote          Quote?
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt

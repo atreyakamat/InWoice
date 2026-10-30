@@ -211,7 +211,7 @@ async function issueInTx(tx: Tx, invoiceId: string) {
   return tx.invoice.update({ where: { id: invoiceId }, data: { status: 'PENDING', issuedAt: new Date() } });
 }
 
-export async function createInvoice(input: InvoiceInput, opts: { recurringId?: string; source?: string } = {}) {
+export async function createInvoice(input: InvoiceInput, opts: { recurringId?: string; source?: string; shopOrderRef?: string } = {}) {
   await assertWithinPlan('invoices');
   const settings = await getSettings();
   return prisma.$transaction(async (tx) => {
@@ -228,6 +228,7 @@ export async function createInvoice(input: InvoiceInput, opts: { recurringId?: s
         notes: input.notes ?? null,
         recurringId: opts.recurringId ?? null,
         source: opts.source ?? null,
+        shopOrderRef: opts.shopOrderRef ?? null,
         ...totals,
         items: { create: lines },
       },

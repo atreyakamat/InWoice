@@ -1,4 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Bot, Cloud, Cpu, Download, HardDriveDownload, Lock, Plus, Power, Upload } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, ErrorBox, Field, Input, Modal, PageHeader, Select, Spinner, StatusBadge, Table, Td, Textarea, Th } from '../components/ui';
 import { useToast } from '../components/toast';
@@ -12,7 +13,7 @@ import { dateTime, money } from '../lib/format';
 import { cn } from '../lib/utils';
 import type { Role, Settings as SettingsT } from '../lib/types';
 
-const TABS = ['Business', 'Invoicing', 'Payments', 'Email', 'AI', 'Team', 'Backups', 'Account'] as const;
+const TABS = ['Business', 'Invoicing', 'Payments', 'Email', 'Shop', 'AI', 'Team', 'Backups', 'Account'] as const;
 type Tab = (typeof TABS)[number];
 
 const FALLBACK_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'];
@@ -60,7 +61,7 @@ export default function Settings() {
 
   return (
     <div>
-      <PageHeader title="Settings" subtitle="Business details, invoicing, payments, email and reminders, AI, your team and backups." />
+      <PageHeader title="Settings" subtitle="Business details, invoicing, payments, email and reminders, your online shop, AI, your team and backups." />
       <div className="mb-5 flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1 sm:inline-flex">
         {TABS.filter((t) => (t !== 'Team' && t !== 'Backups') || isAdmin).map((t) => (
           <button
@@ -104,6 +105,7 @@ export default function Settings() {
               {isAdmin && <MailBrowserCard settings={settings} disabled={!isAdmin} />}
             </div>
           )}
+          {tab === 'Shop' && <ShopTab settings={settings} disabled={!isAdmin} />}
           {tab === 'AI' && <AiTab settings={settings} disabled={!isAdmin} />}
           {tab === 'Team' && isAdmin && <TeamTab />}
           {tab === 'Backups' && isAdmin && <BackupsTab />}
@@ -530,6 +532,138 @@ function EmailTab({ settings, disabled }: { settings: SettingsT; disabled: boole
       <StatementsCard settings={settings} disabled={disabled} />
       <OwnerDigestCard settings={settings} disabled={disabled} />
     </div>
+  );
+}
+
+interface ShopSyncResult {
+  skipped: string | null;
+  created: string[];
+  updated: string[];
+  attention: string[];
+  failed: { order: string; error: string }[];
+}
+
+interface ShopRefundDue {
+  order: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  customer: string;
+  toRefund: number;
+}
+
+const SHOP_GST_RATES = [0, 5, 12, 18, 28];
+
+function ShopTab({ settings, disabled }: { settings: SettingsT; disabled: boolean }) {
+  const toast = useToast();
+  const { save, saving } = useSave();
+  const { refreshSettings } = useAuth();
+  const [enabled, setEnabled] = useState(settings.shopSyncEnabled);
+  const [url, setUrl] = useState(s(settings.shopUrl));
+  const [token, setToken] = useState('');
+  const [cleared, setCleared] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [gstRate, setGstRate] = useState(String(settings.shopGstRate));
+  const [hsn, setHsn] = useState(s(settings.shopHsnCode));
+  const refunds = useLoad(() => get<ShopRefundDue[]>('/settings/shop-sync/attention'), []);
+
+  const submit = async () => {
+    const fields: Record<string, unknown> = { shopSyncEnabled: enabled, shopUrl: url, shopGstRate: Number(gstRate), shopHsnCode: hsn };
+    if (token) fields.shopSyncToken = token;
+    else if (cleared) fields.shopSyncToken = '';
+    if (await save(fields, enabled ? 'Shop sync is on' : 'Saved')) {
+      setToken('');
+      setCleared(false);
+    }
+  };
+
+  const runNow = async () => {
+    setRunning(true);
+    try {
+      const r = await post<ShopSyncResult>('/settings/shop-sync/run');
+      await refreshSettings();
+      void refunds.reload();
+      if (r.skipped) toast.error(r.skipped);
+      else if (r.failed.length) toast.error(r.failed.map((f) => (f.order ? `${f.order}: ${f.error}` : f.error)).join('; '));
+      else if (r.attention.length) toast.error(`Cancelled after payment: ${r.attention.join(', ')}. Refund and issue a credit note.`);
+      else if (r.created.length || r.updated.length) toast.success(`${r.created.length} new order${r.created.length === 1 ? '' : 's'}, ${r.updated.length} updated`);
+      else toast.success('Up to date: no new orders');
+    } catch (err) {
+      toast.error(err);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Card title="Online shop">
+      <p className="mb-4 text-sm text-slate-500">
+        Every 30 minutes InWoice reads changed orders from your shop. Once you confirm an order in the shop, it adds or matches the customer (by
+        mobile number) and becomes an issued invoice; unconfirmed orders are ignored, so spam never uses up invoice numbers. Marking it paid records a
+        UPI payment, and cancelling it cancels the invoice. If this server is off for a while, it catches up when it&apos;s back.
+      </p>
+      <fieldset disabled={disabled} className="grid gap-4">
+        <label className="flex items-center gap-2 text-sm font-medium text-slate-800">
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
+          Sync orders from the shop
+        </label>
+        <Field label="Shop address">
+          <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://shop.stixnvibes.com" />
+        </Field>
+        <SecretField
+          label="Sync token"
+          hint="The same value as INWOICE_SYNC_TOKEN in the shop's settings on Netlify."
+          isSet={settings.shopSyncTokenSet}
+          value={token}
+          onChange={setToken}
+          cleared={cleared}
+          onClear={() => setCleared(true)}
+          disabled={disabled}
+        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="GST included in shop prices" hint="Leave at none if you aren't GST-registered. Otherwise the tax is worked back out of each price, so invoices still total what the customer paid.">
+            <Select value={gstRate} onChange={(e) => setGstRate(e.target.value)}>
+              {SHOP_GST_RATES.map((r) => (
+                <option key={r} value={r}>
+                  {r ? `${r}%` : 'None (no GST)'}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="HSN code for shop items" hint="Printed on each shop invoice line, e.g. 4911 for printed stickers.">
+            <Input value={hsn} onChange={(e) => setHsn(e.target.value)} inputMode="numeric" maxLength={8} placeholder="4911" />
+          </Field>
+        </div>
+      </fieldset>
+      {refunds.data && refunds.data.length > 0 && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="font-medium">Cancelled in the shop after payment: refund these and issue a credit note</p>
+          <ul className="mt-2 grid gap-1">
+            {refunds.data.map((r) => (
+              <li key={r.order}>
+                <Link to={`/invoices/${r.invoiceId}`} className="font-medium underline">
+                  {r.invoiceNumber}
+                </Link>{' '}
+                · {r.order} · {r.customer} · {money(r.toRefund)} to refund
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <p className="mt-4 text-sm text-slate-500">
+        Last sync: {settings.shopSyncLastAt ? dateTime(settings.shopSyncLastAt) : 'never'}
+        {settings.shopSyncLastError && <span className="mt-1 block text-red-600">{settings.shopSyncLastError}</span>}
+      </p>
+      {!disabled && (
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <Button variant="secondary" loading={running} onClick={() => void runNow()} disabled={!settings.shopUrl || !settings.shopSyncTokenSet}>
+            Sync now
+          </Button>
+          <Button loading={saving} onClick={() => void submit()}>
+            Save changes
+          </Button>
+        </div>
+      )}
+    </Card>
   );
 }
 

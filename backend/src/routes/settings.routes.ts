@@ -10,6 +10,7 @@ import { CLAUDE_MODELS, generate, getAiConfig, isAiEnabled, type AiProvider } fr
 import { isEmailConfigured, sendMail } from '../services/email.service';
 import { dueReminders, parseReminderDays, runReminders } from '../services/reminder.service';
 import { runMonthlyStatements } from '../services/documents.service';
+import { runShopSync, shopOrdersNeedingAttention, shopUrlOrNull } from '../services/shop-sync.service';
 
 const router = Router();
 router.use(authenticate);
@@ -105,6 +106,17 @@ const settingsInput = z.object({
   googleClientSecret: z.string().optional(),
   autoMailUserId: optStr,
   mailBrowserProfile: optStr,
+  shopSyncEnabled: z.boolean().optional(),
+  shopUrl: optStr,
+  shopSyncToken: z.string().optional(),
+  shopGstRate: z.coerce.number().min(0).max(28).optional(),
+  shopHsnCode: z
+    .string()
+    .trim()
+    .regex(/^(\d{4}|\d{6}|\d{8})?$/, 'An HSN/SAC code is 4, 6 or 8 digits')
+    .optional()
+    .nullable()
+    .transform((v) => (v === undefined ? undefined : v || null)),
 });
 
 router.get('/', async (req, res) => {
@@ -129,7 +141,8 @@ router.put('/', requireAdmin, async (req, res) => {
     const u = await prisma.user.findUnique({ where: { id: input.autoMailUserId }, select: { isActive: true, gmailRefreshToken: true } });
     if (!u?.isActive || !u.gmailRefreshToken) throw badRequest('That person has not connected their Gmail');
   }
-  for (const secret of ['smtpPassword', 'aiApiKey', 's3SecretKey', 'youpiWebhookSecret', 'googleClientSecret'] as const) {
+  if (input.shopUrl !== undefined) data.shopUrl = shopUrlOrNull(input.shopUrl);
+  for (const secret of ['smtpPassword', 'aiApiKey', 's3SecretKey', 'youpiWebhookSecret', 'googleClientSecret', 'shopSyncToken'] as const) {
     if (input[secret] === undefined) delete data[secret];
     else data[secret] = input[secret].trim() === '' ? null : input[secret].trim();
   }
@@ -183,6 +196,16 @@ router.post('/reminders/run', requireAdmin, async (_req, res) => {
 /** Send last month's statements now (normally done automatically once a month). */
 router.post('/statements/run', requireAdmin, async (_req, res) => {
   res.json({ success: true, data: await runMonthlyStatements() });
+});
+
+/** Pull new and changed orders from the online shop now (normally every 30 minutes). */
+router.post('/shop-sync/run', requireAdmin, async (_req, res) => {
+  res.json({ success: true, data: await runShopSync({ force: true }) });
+});
+
+/** Shop orders cancelled after payment that still need a refund and credit note. */
+router.get('/shop-sync/attention', async (_req, res) => {
+  res.json({ success: true, data: await shopOrdersNeedingAttention() });
 });
 
 router.post('/test-email', requireAdmin, async (req, res) => {

@@ -303,6 +303,13 @@ docker compose cp app:/app/backend/backups ./inwoice-backups
 Restore with Settings › Backups, or
 `docker compose exec app node dist/cli/backup.js restore /app/backend/backups/<file> --replace`.
 
+**Home lab with power cuts.** Both containers use `restart: unless-stopped`, so they come back by
+themselves when the machine and Docker start again (enable Docker at boot:
+`sudo systemctl enable docker`). The image carries everything it needs, so it starts even if
+the internet isn't back yet. PostgreSQL recovers cleanly from a sudden power loss; nothing
+from the online shop is lost while the box is off, because the shop sync catches up on start.
+A small UPS for the box and router is still worth it.
+
 To add local AI: `docker compose --profile ai up -d`, then
 `docker compose exec ollama ollama pull qwen2.5:1.5b`, and set the Ollama URL in
 Settings > AI to `http://ollama:11434`.
