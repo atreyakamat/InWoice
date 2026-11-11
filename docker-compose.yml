@@ -8,6 +8,9 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    mem_limit: 512m
+    security_opt:
+      - no-new-privileges:true
     environment:
       POSTGRES_USER: inwoice
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
