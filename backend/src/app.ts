@@ -47,7 +47,8 @@ const APP_VERSION: string = (() => {
 const app = express();
 
 app.disable('x-powered-by');
-app.set('trust proxy', 1); // correct client IPs behind nginx/Caddy for rate limiting
+// Client IPs for rate limiting: 1 = behind nginx/Caddy, 0 = reached directly (TRUST_PROXY).
+app.set('trust proxy', config.trustProxy);
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -58,11 +59,15 @@ app.use(
         scriptSrc: ["'self'"],
         connectSrc: ["'self'"],
         frameSrc: ["'self'", 'blob:'],
+        // Only InWoice itself, and the House of Stix control room when CONTROL_ROOM_ORIGIN is set, may frame it.
+        frameAncestors: ["'self'", ...config.frameAncestors],
         objectSrc: ["'self'", 'blob:'],
         // Off so the app also works over plain HTTP on a LAN (e.g. http://192.168.1.10:5000).
         upgradeInsecureRequests: null,
       },
     },
+    // X-Frame-Options can't name another origin; frame-ancestors above replaces it when the control room is allowed.
+    xFrameOptions: config.frameAncestors.length ? false : { action: 'sameorigin' },
   }),
 );
 app.use(cors(config.corsOrigins.length ? { origin: config.corsOrigins } : { origin: config.isProd ? false : true }));

@@ -15,12 +15,35 @@ function jwtSecret(): string {
   return 'insecure-development-secret-change-me-please-0000';
 }
 
+/** Valid http(s) origins from a comma or space separated list; anything else is dropped. */
+export function parseOrigins(v: string | undefined): string[] {
+  return (v || '')
+    .split(/[\s,]+/)
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter((o) => /^https?:\/\/[^\s'";/]+$/.test(o));
+}
+
+/**
+ * How many reverse proxies to believe in X-Forwarded-For. 0 when InWoice is
+ * reached directly (the home lab): otherwise anyone could send a made-up
+ * X-Forwarded-For on every try and dodge the login rate limit.
+ * Unset keeps the old behaviour (one proxy, e.g. nginx/Caddy in front).
+ */
+function trustProxy(v: string | undefined): number {
+  if (v === undefined || v.trim() === '') return 1;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 0 ? n : 1;
+}
+
 export const config = {
   isProd,
   isTest,
   port: Number(process.env.PORT) || 5000,
   jwtSecret: jwtSecret(),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  trustProxy: trustProxy(process.env.TRUST_PROXY),
+  // House of Stix control room address: the only other page allowed to show InWoice in a frame.
+  frameAncestors: parseOrigins(process.env.CONTROL_ROOM_ORIGIN),
   corsOrigins: (process.env.CORS_ORIGIN || '')
     .split(',')
     .map((s) => s.trim())
